@@ -1830,3 +1830,108 @@ extension Collection {
     return numericCast(distance(from: start, to: end) as Int)
   }
 }
+
+public enum DefaultIndex<Base: Sequence> : Comparable {
+  case element(Int, Base.Element, Base.Iterator)
+  case end
+  
+  fileprivate init(_ base: Base) {
+    var iterator = base.makeIterator()
+    if let element = iterator.next() {
+      self = .element(0, element, iterator)
+    } else {
+      self = .end
+    }
+  }
+  
+  fileprivate init() {
+    self = .end
+  }
+  
+  public static func ==(lhs: DefaultIndex, rhs: DefaultIndex) -> Bool {
+    switch (lhs, rhs) {
+    case (.element(let l, _, _), .element(let r, _, _)):
+      return l == r
+    case (.end, .end):
+      return true
+    default:
+      return false
+    }
+  }
+  
+  public static func < (lhs: DefaultIndex, rhs: DefaultIndex) -> Bool {
+    switch (lhs, rhs) {
+    case (.element(let l, _, _), .element(let r, _, _)):
+      return l < r
+    case (.element, .end):
+      return true
+    default:
+      return false
+    }
+  }
+  
+  fileprivate mutating func stepForward() {
+    switch self {
+    case .element(let pos, _, var iterator):
+      if let e = iterator.next() {
+        self = .element(pos + 1, e, iterator)
+      } else {
+        self = .end
+      }
+    case .end:
+      fatalError("Can't advance past end")
+    }
+  }
+  
+  public func distance(to other: DefaultIndex) -> Int {
+    switch (self, other) {
+    case (.element(let l, _, _), .element(let r, _, _)):
+      return r - l
+    case (.end, .end):
+      return 0
+    case (.end, _):
+      return -(other.distance(to: self))
+    default:
+      break
+    }
+    
+    var i = self
+    var n = 0
+    while i != other {
+      i.stepForward()
+      n += 1
+    }
+    return n
+  }
+  
+  fileprivate var element: Base.Element {
+    guard case .element(_, let e, _) = self else {
+      fatalError("Can't subscript at end")
+    }
+    return e
+  }
+}
+
+extension Collection where Index == DefaultIndex<Self> {
+  public var startIndex: DefaultIndex<Self> {
+    return DefaultIndex(self)
+  }
+
+  public var endIndex: DefaultIndex<Self> {
+    return DefaultIndex()
+  }
+
+  public subscript(i: DefaultIndex<Self>) -> Element {
+    return i.element
+  }
+
+  public func index(after i: DefaultIndex<Self>) -> DefaultIndex<Self> {
+    var j = i
+    j.stepForward()
+    return j
+  }
+
+//  public func formIndex(after i: inout DefaultIndex<Self>) {
+//    i.stepForward()
+//  }
+}
