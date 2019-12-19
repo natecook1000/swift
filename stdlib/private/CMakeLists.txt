@@ -10,6 +10,7 @@ if(SWIFT_BUILD_SDK_OVERLAY)
   add_subdirectory(StdlibCollectionUnittest)
   add_subdirectory(SwiftPrivateLibcExtras)
   add_subdirectory(SwiftPrivateThreadExtras)
+  add_subdirectory(SwiftPrivateMetadataExtras)
 
   # NOTE(compnerd) this must come after SwiftPrivateLibcExtras and
   # SwiftPrivateThreadExtras to ensure that the dependency targets are setup in
