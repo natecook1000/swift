@@ -453,6 +453,9 @@ static bool ParseLangArgs(LangOptions &Opts, ArgList &Args,
     Opts.OptimizationRemarkMissedPattern =
         generateOptimizationRemarkRegex(Diags, Args, A);
 
+  Opts.EnableConcisePoundFile =
+      Args.hasArg(OPT_enable_experimental_concise_pound_file);
+
   llvm::Triple Target = Opts.Target;
   StringRef TargetArg;
   if (const Arg *A = Args.getLastArg(OPT_target)) {
@@ -635,7 +638,12 @@ static bool ParseClangImporterArgs(ClangImporterOptions &Opts,
 
   if (Args.hasArg(OPT_warnings_as_errors))
     Opts.ExtraArgs.push_back("-Werror");
+
   Opts.DebuggerSupport |= Args.hasArg(OPT_debugger_support);
+
+  Opts.DisableSourceImport |=
+      Args.hasArg(OPT_disable_clangimporter_source_import);
+
   return false;
 }
 

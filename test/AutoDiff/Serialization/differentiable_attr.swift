@@ -1,13 +1,14 @@
-// SWIFT_ENABLE_TENSORFLOW
-
 // RUN: %empty-directory(%t)
 // RUN: %target-swift-frontend %s -emit-module -parse-as-library -o %t
 // RUN: llvm-bcanalyzer %t/differentiable_attr.swiftmodule | %FileCheck %s -check-prefix=BCANALYZER
 // RUN: %target-sil-opt -disable-sil-linking -enable-sil-verify-all %t/differentiable_attr.swiftmodule -o - | %FileCheck %s
 // REQUIRES: differentiable_programming
 
+// We currently lack availability information (rdar://57975086)
+// UNSUPPORTED: use_os_stdlib
+
 // TODO(TF-836): Enable this test.
-// Blocked by TF-828: `@differentiating` attribute type-checking.
+// Blocked by TF-828: `@differentiable` attribute type-checking.
 // XFAIL: *
 
 // BCANALYZER-NOT: UnknownCode

@@ -288,7 +288,7 @@ func r18800223(_ i : Int) {
 
   
   var buttonTextColor: String?
-  _ = (buttonTextColor != nil) ? 42 : {$0}; // expected-error {{type of expression is ambiguous without more context}}
+  _ = (buttonTextColor != nil) ? 42 : {$0}; // expected-error {{unable to infer closure type in the current context}}
 }
 
 // <rdar://problem/21883806> Bogus "'_' can only appear in a pattern or on the left side of an assignment" is back
@@ -512,7 +512,7 @@ let _: Color = .Unknown(42) // expected-error {{missing argument label 'descript
 // expected-error@-1 {{cannot convert value of type 'Int' to expected argument type 'String'}}
 let _ : Color = .rainbow(42)  // expected-error {{argument passed to call that takes no arguments}}
 
-let _ : (Int, Float) = (42.0, 12)  // expected-error {{cannot convert value of type 'Double' to specified type 'Int'}}
+let _ : (Int, Float) = (42.0, 12)  // expected-error {{cannot convert value of type '(Double, Float)' to specified type '(Int, Float)'}}
 
 let _ : Color = .rainbow  // expected-error {{member 'rainbow()' is a function; did you mean to call it?}} {{25-25=()}}
 
@@ -529,8 +529,8 @@ let _: Color = .frob(1, b: i)  // expected-error {{passing value of type 'Int' t
 let _: Color = .frob(1, &d) // expected-error {{missing argument label 'b:' in call}}
 // expected-error@-1 {{cannot convert value of type 'Double' to expected argument type 'Int'}}
 let _: Color = .frob(1, b: &d) // expected-error {{cannot convert value of type 'Double' to expected argument type 'Int'}}
-var someColor : Color = .red // expected-error {{enum type 'Color' has no case 'red'; did you mean 'Red'}}
-someColor = .red  // expected-error {{enum type 'Color' has no case 'red'; did you mean 'Red'}}
+var someColor : Color = .red // expected-error {{enum type 'Color' has no case 'red'; did you mean 'Red'?}}
+someColor = .red  // expected-error {{enum type 'Color' has no case 'red'; did you mean 'Red'?}}
 someColor = .svar() // expected-error {{cannot call value of non-function type 'Color'}}
 someColor = .svar(1) // expected-error {{cannot call value of non-function type 'Color'}}
 

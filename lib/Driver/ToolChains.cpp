@@ -238,6 +238,8 @@ static void addCommonFrontendArgs(const ToolChain &TC, const OutputInfo &OI,
   inputArgs.AddLastArg(arguments, options::OPT_enable_astscope_lookup);
   inputArgs.AddLastArg(arguments, options::OPT_disable_astscope_lookup);
   inputArgs.AddLastArg(arguments, options::OPT_disable_parser_lookup);
+  inputArgs.AddLastArg(arguments,
+                       options::OPT_enable_experimental_concise_pound_file);
 
   // Pass on any build config options
   inputArgs.AddAllArgs(arguments, options::OPT_D);
@@ -465,6 +467,9 @@ ToolChain::constructInvocation(const CompileJobAction &job,
                                   options::OPT_runtime_compatibility_version)) {
     Arguments.push_back("-runtime-compatibility-version");
     Arguments.push_back(arg->getValue());
+  }
+  if (context.Args.hasArg(options::OPT_track_system_dependencies)) {
+    Arguments.push_back("-track-system-dependencies");
   }
 
   context.Args.AddLastArg(

@@ -788,6 +788,17 @@ IRGenModule::getAddrOfContextDescriptorForParent(DeclContext *parent,
     LLVM_FALLTHROUGH;
       
   case DeclContextKind::Module:
+    if (auto *D = ofChild->getAsDecl()) {
+      // If the top-level decl has been marked as moved from another module,
+      // using @_originallyDefinedIn, we should emit the original module as
+      // the context because all run-time names of this decl are based on the
+      // original module name.
+      auto OriginalModule = D->getAlternateModuleName();
+      if (!OriginalModule.empty()) {
+        return {getAddrOfOriginalModuleContextDescriptor(OriginalModule),
+          ConstantReference::Direct};
+      }
+    }
     return {getAddrOfModuleContextDescriptor(cast<ModuleDecl>(parent)),
             ConstantReference::Direct};
   }
@@ -905,12 +916,11 @@ std::string IRGenModule::GetObjCSectionName(StringRef Section,
                ? ("__DATA," + Section).str()
                : ("__DATA," + Section + "," + MachOAttributes).str();
   case llvm::Triple::ELF:
+  case llvm::Triple::Wasm:
     return Section.substr(2).str();
   case llvm::Triple::XCOFF:
   case llvm::Triple::COFF:
     return ("." + Section.substr(2) + "$B").str();
-  case llvm::Triple::Wasm:
-    return Section.substr(2).str();
   }
 
   llvm_unreachable("unexpected object file format");
@@ -937,11 +947,10 @@ void IRGenModule::SetCStringLiteralSection(llvm::GlobalVariable *GV,
       return;
     }
   case llvm::Triple::ELF:
+  case llvm::Triple::Wasm:
     return;
   case llvm::Triple::XCOFF:
   case llvm::Triple::COFF:
-    return;
-  case llvm::Triple::Wasm:
     return;
   }
 
@@ -1000,7 +1009,7 @@ static bool hasCodeCoverageInstrumentation(SILFunction &f, SILModule &m) {
   return f.getProfiler() && m.getOptions().EmitProfileCoverageMapping;
 }
 
-void IRGenerator::emitGlobalTopLevel() {
+void IRGenerator::emitGlobalTopLevel(llvm::StringSet<> *linkerDirectives) {
   // Generate order numbers for the functions in the SIL module that
   // correspond to definitions in the LLVM module.
   unsigned nextOrderNumber = 0;
@@ -1020,7 +1029,11 @@ void IRGenerator::emitGlobalTopLevel() {
     CurrentIGMPtr IGM = getGenModule(wt.getProtocol()->getDeclContext());
     ensureRelativeSymbolCollocation(wt);
   }
-
+  if (linkerDirectives) {
+    for (auto &entry: *linkerDirectives) {
+      createLinkerDirectiveVariable(*PrimaryIGM, entry.getKey());
+    }
+  }
   for (SILGlobalVariable &v : PrimaryIGM->getSILModule().getSILGlobals()) {
     Decl *decl = v.getDecl();
     CurrentIGMPtr IGM = getGenModule(decl ? decl->getDeclContext() : nullptr);
@@ -1931,6 +1944,49 @@ llvm::GlobalVariable *swift::irgen::createVariable(
   return var;
 }
 
+llvm::GlobalVariable *
+swift::irgen::createLinkerDirectiveVariable(IRGenModule &IGM, StringRef name) {
+
+  // A prefix of \1 can avoid further mangling of the symbol (prefixing _).
+  llvm::SmallString<32> NameWithFlag;
+  NameWithFlag.push_back('\1');
+  NameWithFlag.append(name);
+  name = NameWithFlag.str();
+  static const uint8_t Size = 8;
+  static const uint8_t Alignment = 8;
+
+  // Use a char type as the type for this linker directive.
+  auto ProperlySizedIntTy = SILType::getBuiltinIntegerType(
+      Size, IGM.getSwiftModule()->getASTContext());
+  auto storageType = IGM.getStorageType(ProperlySizedIntTy);
+
+  llvm::GlobalValue *existingValue = IGM.Module.getNamedGlobal(name);
+  if (existingValue) {
+    auto existingVar = dyn_cast<llvm::GlobalVariable>(existingValue);
+    if (existingVar && isPointerTo(existingVar->getType(), storageType))
+      return existingVar;
+
+    IGM.error(SourceLoc(),
+              "program too clever: variable collides with existing symbol " +
+                  name);
+
+    // Note that this will implicitly unique if the .unique name is also taken.
+    existingValue->setName(name + ".unique");
+  }
+
+  llvm::GlobalValue::LinkageTypes Linkage =
+    llvm::GlobalValue::LinkageTypes::ExternalLinkage;
+  auto var = new llvm::GlobalVariable(IGM.Module, storageType, /*constant*/true,
+    Linkage, /*Init to zero*/llvm::Constant::getNullValue(storageType), name);
+  ApplyIRLinkage({Linkage,
+                  llvm::GlobalValue::VisibilityTypes::DefaultVisibility,
+        llvm::GlobalValue::DLLStorageClassTypes::DefaultStorageClass}).to(var);
+  var->setAlignment(Alignment);
+  disableAddressSanitizer(IGM, var);
+  IGM.addUsedGlobal(var);
+  return var;
+}
+
 void swift::irgen::disableAddressSanitizer(IRGenModule &IGM, llvm::GlobalVariable *var) {
   // Add an operand to llvm.asan.globals blacklisting this global variable.
   llvm::Metadata *metadata[] = {
@@ -2592,20 +2648,15 @@ static llvm::GlobalVariable *createGOTEquivalent(IRGenModule &IGM,
                                       global,
                                       llvm::Twine("got.") + globalName);
   
-  // rdar://problem/50968433: Unnamed_addr constants appear to get emitted
-  // with incorrect alignment by the LLVM JIT in some cases. Don't use
-  // unnamed_addr as a workaround.
   // rdar://problem/53836960: i386 ld64 also mis-links relative references
   // to GOT entries.
-  if (!IGM.getOptions().UseJIT
-      && (!IGM.Triple.isOSDarwin()
-          || IGM.Triple.getArch() != llvm::Triple::x86)) {
+  if (!IGM.Triple.isOSDarwin() || IGM.Triple.getArch() != llvm::Triple::x86) {
     gotEquivalent->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
   } else {
     ApplyIRLinkage(IRLinkage::InternalLinkOnceODR)
       .to(gotEquivalent);
   }
-  
+
   return gotEquivalent;
 }
 

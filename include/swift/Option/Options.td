@@ -139,6 +139,16 @@ def enable_fine_grained_dependencies :
 Flag<["-"], "enable-fine-grained-dependencies">, Flags<[FrontendOption, HelpHidden]>,
 HelpText<"Experimental work-in-progress to be more selective about incremental recompilation">;
 
+
+def enable_only_one_dependency_file :
+Flag<["-"], "enable-only-one-dependency-file">, Flags<[DoesNotAffectIncrementalBuild]>,
+ HelpText<"Enables incremental build optimization that only produces one dependencies file">;
+
+def disable_only_one_dependency_file :
+Flag<["-"], "disable-only-one-dependency-file">, Flags<[DoesNotAffectIncrementalBuild]>,
+ HelpText<"Disables incremental build optimization that only produces one dependencies file">;
+ 
+
 def enable_source_range_dependencies :
 Flag<["-"], "enable-source-range-dependencies">, Flags<[]>,
 HelpText<"Try using source range information">;
@@ -453,6 +463,11 @@ def disable_bridging_pch : Flag<["-"], "disable-bridging-pch">,
 def enable_experimental_differentiable_programming : Flag<["-"], "enable-experimental-differentiable-programming">,
   Flags<[FrontendOption]>,
   HelpText<"Enable experimental differentiable programming features">;
+
+def enable_experimental_concise_pound_file : Flag<["-"],
+    "enable-experimental-concise-pound-file">,
+  Flags<[FrontendOption]>,
+  HelpText<"Enable experimental concise '#file' identifier and '#filePath' alternative">;
 
 // Diagnostic control options
 def suppress_warnings : Flag<["-"], "suppress-warnings">,
@@ -888,6 +903,9 @@ def target : Separate<["-"], "target">,
   HelpText<"Generate code for the given target <triple>, such as x86_64-apple-macos10.9">, MetaVarName<"<triple>">;
 def target_legacy_spelling : Joined<["--"], "target=">,
   Flags<[FrontendOption]>, Alias<target>;
+def print_target_info : Flag<["-"], "print-target-info">,
+    Flags<[FrontendOption]>,
+    HelpText<"Print target information for the given target <triple>, such as x86_64-apple-macos10.9">, MetaVarName<"<triple>">;
 
 def target_cpu : Separate<["-"], "target-cpu">, Flags<[FrontendOption, ModuleInterfaceOption]>,
   HelpText<"Generate code for a particular CPU variant">;
