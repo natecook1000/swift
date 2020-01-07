@@ -14,7 +14,7 @@
 // REQUIRES: executable_test
 
 import StdlibUnittest
-import SwiftPrivate
+import SwiftMetadataExtras
 
 struct TestStruct {
   var int = 0
@@ -72,7 +72,7 @@ class GenericSubclass<V, W>: GenericClass<V, Bool> {
 
 func checkFields<T>(
   of type: T.Type,
-  options: FieldOptions = [],
+  options: EachFieldOptions = [],
   fields: [String: (Int, Any.Type)]
 ) {
   var count = 0
@@ -103,7 +103,7 @@ extension GenericSubclass: ExistentialProtocol {}
 
 extension ExistentialProtocol {
   static func doCheckFields(
-    options: FieldOptions = [],
+    options: EachFieldOptions = [],
     fields: [String: (Int, Any.Type)]
   ) {
     checkFields(of: Self.self, options: options, fields: fields)
@@ -112,7 +112,7 @@ extension ExistentialProtocol {
 
 func checkFieldsAsExistential(
   of type: ExistentialProtocol.Type,
-  options: FieldOptions = [],
+  options: EachFieldOptions = [],
   fields: [String: (Int, Any.Type)]
 ) {
   type.doCheckFields(options: options, fields: fields)

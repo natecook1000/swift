@@ -61,6 +61,7 @@ if(SWIFT_BUILD_STDLIB)
   add_subdirectory(stubs)
   add_subdirectory(core)
   add_subdirectory(SwiftOnoneSupport)
+  add_subdirectory(SwiftMetadataExtras)
 endif()
 
 # Build differentiable programming support library only if enabled.
