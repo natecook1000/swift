@@ -160,6 +160,27 @@ where SubSequence: MutableCollection
     by belongsInSecondPartition: (Element) throws -> Bool
   ) rethrows -> Index
 
+  /// Rotates the elements of this collection so that the element at the
+  /// specified index becomes the start of the collection.
+  ///
+  /// Rotating a collection is equivalent to breaking the collection into two
+  /// sections at the index `newStart`, and then swapping those two sections. In
+  /// this example, the `numbers` array is rotated so that the element at index
+  /// `3` (`40`) is first:
+  ///
+  ///     var numbers = [10, 20, 30, 40, 50, 60, 70, 80]
+  ///     let oldStart = numbers.rotate(toStartAt: 3)
+  ///     // numbers == [40, 50, 60, 70, 80, 10, 20, 30]
+  ///     // numbers[oldStart] == 10
+  ///
+  /// - Parameter newStart: The index of the element that should be first after
+  ///   rotating.
+  /// - Returns: The new index of the element that was first pre-rotation.
+  ///
+  /// - Complexity: O(*n*), where *n* is the length of the collection.
+  @discardableResult
+  mutating func rotate(toStartAt newStart: Index) -> Index
+
   /// Exchanges the values at the specified indices of the collection.
   ///
   /// Both parameters must be valid indices of the collection and not
@@ -470,6 +491,106 @@ extension MutableCollection {
       formIndex(after: &q)
     } while p != lhs.upperBound && q != rhs.upperBound
     return (p, q)
+  }
+}
+
+//===----------------------------------------------------------------------===//
+// rotate(toStartAt:) / rotate(subrange:toStartAt:)
+//===----------------------------------------------------------------------===//
+
+extension MutableCollection {
+  /// Rotates the elements of this collection so that the element at the
+  /// specified index becomes the start of the collection.
+  ///
+  /// Rotating a collection is equivalent to breaking the collection into two
+  /// sections at the index `newStart`, and then swapping those two sections.
+  /// In this example, the `numbers` array is rotated so that the element at
+  /// index `3` (`40`) is first:
+  ///
+  ///     var numbers = [10, 20, 30, 40, 50, 60, 70, 80]
+  ///     let oldStart = numbers.rotate(toStartAt: 3)
+  ///     // numbers == [40, 50, 60, 70, 80, 10, 20, 30]
+  ///     // numbers[oldStart] == 10
+  ///
+  /// - Parameter newStart: The index of the element that should be first after
+  ///   rotating.
+  /// - Returns: The new index of the element that was first pre-rotation.
+  ///
+  /// - Complexity: O(*n*), where *n* is the length of the collection.
+  @inlinable
+  @discardableResult
+  public mutating func rotate(toStartAt newStart: Index) -> Index {
+    _rotate(in: startIndex..<endIndex, shiftingToStart: newStart)
+  }
+}
+
+extension MutableCollection where Self: BidirectionalCollection {
+  /// Reverses the elements of the collection, moving from each end until
+  /// `limit` is reached from either direction. The returned indices are the
+  /// start and end of the range of unreversed elements.
+  ///
+  ///     Input:
+  ///     [a b c d e f g h i j k l m n o p]
+  ///             ^
+  ///           limit
+  ///     Output:
+  ///     [p o n m e f g h i j k l d c b a]
+  ///             ^               ^
+  ///           lower           upper
+  ///
+  /// - Postcondition: For returned indices `(lower, upper)`:
+  ///   `lower == limit || upper == limit`
+  @inlinable
+  @discardableResult
+  internal mutating func _reverse(
+    in subrange: Range<Index>,
+    until limit: Index
+  ) -> (Index, Index) {
+    var lower = subrange.lowerBound
+    var upper = subrange.upperBound
+    while lower != limit && upper != limit {
+      formIndex(before: &upper)
+      swapAt(lower, upper)
+      formIndex(after: &lower)
+    }
+    return (lower, upper)
+  }
+
+  /// Rotates the elements of this collection so that the element at the
+  /// specified index becomes the start of the collection.
+  ///
+  /// Rotating a collection is equivalent to breaking the collection into two
+  /// sections at the index `newStart`, and then swapping those two sections. In
+  /// this example, the `numbers` array is rotated so that the element at index
+  /// `3` (`40`) is first:
+  ///
+  ///     var numbers = [10, 20, 30, 40, 50, 60, 70, 80]
+  ///     let oldStart = numbers.rotate(toStartAt: 3)
+  ///     // numbers == [40, 50, 60, 70, 80, 10, 20, 30]
+  ///     // numbers[oldStart] == 10
+  ///
+  /// - Parameter newStart: The index of the element that should be first after
+  ///   rotating.
+  /// - Returns: The new index of the element that was first pre-rotation.
+  ///
+  /// - Complexity: O(*n*), where *n* is the length of the collection.
+  @inlinable
+  @discardableResult
+  public mutating func rotate(toStartAt newStart: Index) -> Index {
+    ///     [a b c d e f g h i j k l m n o p]
+    ///             ^
+    ///           newStart
+    self[..<newStart].reverse()
+    ///     [D C B A e f g h i j k l m n o p]
+    self[newStart...].reverse()
+    ///     [d c b a P O N M L K J I H G F E]
+    let (p, q) = _reverse(in: startIndex..<endIndex, until: newStart)
+    ///     [E F G H p o n m l k j i A B C D]
+    ///             ^               ^
+    ///             p               q
+    self[p..<q].reverse()
+    ///     [e f g h I J K L M N O P a b c d]
+    return newStart == p ? q : p
   }
 }
 
