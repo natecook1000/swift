@@ -18,6 +18,10 @@ public func == (
   return Array(lhs) == Array(rhs)
 }
 
+func isEven(_ n: Int) -> Bool { n.isMultiple(of: 2) }
+func isNotEven(_ n: Int) -> Bool { !isEven(n) }
+let reversedInts = Array((1...1000).reversed())
+
 // FIXME(prext): move this struct to the point of use.
 Algorithm.test("min,max") {
   // Identities are unique in this set.
@@ -220,6 +224,36 @@ Algorithm.test("sorted/complexity") {
 
 Algorithm.test("sorted/return type") {
   let _: Array = ([5, 4, 3, 2, 1] as ArraySlice).sorted()
+}
+
+Algorithm.test("sort/cow") {
+  expectNoCopyOnWrite(reversedInts) { array in
+    array.sort()
+    expectTrue(zip(array, array.dropFirst()).allSatisfy({ $0 < $1 }))
+  }
+}
+
+Algorithm.test("sort/cowslice") {
+  expectNoCopyOnWrite(reversedInts) { array in
+    var mid = array.count / 2
+    array[..<mid].sort()
+    expectTrue(zip(array[..<mid], array[..<mid].dropFirst()).allSatisfy({ $0 < $1 }))
+  }
+}
+
+Algorithm.test("partition/cowslice") {
+  expectNoCopyOnWrite(reversedInts, "storage copied during partition") { array in
+    let pivot = array.partition(by: isEven)
+    expectTrue(array[..<pivot].allSatisfy(isNotEven))
+    expectTrue(array[pivot...].allSatisfy(isEven))
+  }
+  
+  expectNoCopyOnWrite(reversedInts, "storage copied during slice partition") { array in
+    let mid = array.count / 2
+    let threePivot = array[..<mid].partition(by: isEven)
+    expectTrue(array[..<threePivot].allSatisfy(isNotEven))
+    expectTrue(array[threePivot..<mid].allSatisfy(isEven))
+  }
 }
 
 runAllTests()
