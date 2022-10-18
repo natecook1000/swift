@@ -345,6 +345,10 @@ extension Array {
     return _buffer.immutableCapacity
   }
 
+  /// Puts the Array in a mutable state, guaranteeing uniqueness.
+  ///
+  /// After calling `_makeMutableAndUnique()` and performing any mutations, the
+  /// array must be marked as immutable again by calling `_endMutation()`.
   @inlinable
   @_semantics("array.make_mutable")
   @_effects(notEscaping self.**)
