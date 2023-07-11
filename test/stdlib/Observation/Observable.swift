@@ -174,6 +174,27 @@ class CapturedState<State>: @unchecked Sendable {
   }
 }
 
+@Observable
+class RecursiveInner {
+    var value = "prefix"
+}
+
+@Observable
+class RecursiveOuter {
+    var inner = RecursiveInner()
+    var value = "prefix"
+
+    func recursiveTrackingCalls() {
+        withObservationTracking({
+            let _ = value
+            
+            _ = withObservationTracking({
+                inner.value
+            }, onChange: {})
+        }, onChange: {})
+    }
+}
+
 @main
 struct Validator {
   @MainActor
@@ -360,6 +381,11 @@ struct Validator {
       changed.state = false
       test.test = "c"
       expectEqual(changed.state, false)
+    }
+    
+    suite.test("recursive tracking") {
+      let obj = RecursiveOuter()
+      obj.recursiveTrackingCalls()
     }
     
     runAllTests()
