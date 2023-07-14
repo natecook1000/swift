@@ -176,6 +176,16 @@ class CapturedState<State>: @unchecked Sendable {
   }
 }
 
+@Observable
+class InstanceCounted {
+  static var instanceCount = 0
+
+  var value = 0
+  
+  init() { Self.instanceCount += 1 }
+  deinit { Self.instanceCount -= 1 }
+}
+
 @main
 struct Validator {
   @MainActor
@@ -362,6 +372,23 @@ struct Validator {
       changed.state = false
       test.test = "c"
       expectEqual(changed.state, false)
+    }
+    
+    suite.test("onchange deallocated") {
+      do {
+        let observed = InstanceCounted()
+        let capturedInChange = InstanceCounted()
+        expectEqual(InstanceCounted.instanceCount, 2)
+
+        withObservationTracking {
+          _blackHole(observed.value)
+        } onChange: {
+          _blackHole(capturedInChange)
+        }
+        expectEqual(InstanceCounted.instanceCount, 2)
+      }
+      
+      expectEqual(InstanceCounted.instanceCount, 0)
     }
     
     runAllTests()
