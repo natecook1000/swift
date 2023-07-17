@@ -176,6 +176,31 @@ class CapturedState<State>: @unchecked Sendable {
   }
 }
 
+import Foundation
+
+@Observable
+class Generic<T> {
+  var value: T
+  
+  init(_ value: T) {
+    self.value = value
+  }
+}
+
+@Observable
+class ObcJSubclass: NSObject {
+  var value = ""
+}
+
+@Observable
+class GenericObcJSubclass<T>: NSObject {
+  var value: T
+  
+  init(_ value: T) {
+    self.value = value
+  }
+}
+
 @main
 struct Validator {
   @MainActor
