@@ -20,7 +20,7 @@
 /// types must conform to `UnsafeCxxInputIterator`.
 
 @available(SwiftStdlib 6.4, *)
-public protocol CxxBorrowingSequence<Element> : BorrowingSequence, ~Copyable, ~Escapable {
+public protocol CxxBorrowingSequence<Element> : /* BorrowingSequence, */ ~Copyable, ~Escapable {
   override associatedtype Element: ~Copyable
   override associatedtype BorrowingIterator: BorrowingIteratorProtocol<Element> & ~Copyable & ~Escapable = CxxBorrowingIterator<Self>
   associatedtype RawIterator: UnsafeCxxInputIterator
@@ -35,7 +35,7 @@ public protocol CxxBorrowingSequence<Element> : BorrowingSequence, ~Copyable, ~E
 
 @frozen
 @available(SwiftStdlib 6.4, *)
-public struct CxxBorrowingIterator<T>: BorrowingIteratorProtocol, ~Escapable, ~Copyable where T: CxxBorrowingSequence & ~Copyable & ~Escapable, T.Element: ~Copyable {
+public struct CxxBorrowingIterator<T>: /* BorrowingIteratorProtocol, */ ~Escapable, ~Copyable where T: CxxBorrowingSequence & ~Copyable & ~Escapable, T.Element: ~Copyable {
   public typealias Element = T.RawIterator.Pointee
 
   @usableFromInline

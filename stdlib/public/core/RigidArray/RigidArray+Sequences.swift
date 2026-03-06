@@ -16,8 +16,8 @@ extension RigidArray: BorrowingSequence where Element: ~Copyable {
   @_alwaysEmitIntoClient
   @_lifetime(borrow self)
   @_transparent
-  public borrowing func makeBorrowingIterator() -> Span<Element> {
-    span
+  public borrowing func makeBorrowingIterator() -> BorrowingSpanIterator<Element> {
+    BorrowingSpanIterator(span)
   }
 }
 

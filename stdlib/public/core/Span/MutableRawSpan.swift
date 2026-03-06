@@ -767,14 +767,14 @@ extension MutableRawSpan {
   }
 }
 
-#if !SPAN_COMPATIBILITY_STUB
-@available(SwiftStdlib 6.4, *)
-extension MutableRawSpan: BorrowingSequence {
-  @available(SwiftStdlib 6.4, *)
-  @inlinable
-  @lifetime(borrow self)
-  public func makeBorrowingIterator() -> SpanIterator<UInt8> {
-    SpanIterator(self.bytes._span)
-  }
-}
-#endif
+//#if !SPAN_COMPATIBILITY_STUB
+//@available(SwiftStdlib 6.4, *)
+//extension MutableRawSpan: BorrowingSequence {
+//  @available(SwiftStdlib 6.4, *)
+//  @inlinable
+//  @lifetime(borrow self)
+//  public func makeBorrowingIterator() -> SpanIterator<UInt8> {
+//    SpanIterator(self.bytes._span)
+//  }
+//}
+//#endif
