@@ -87,13 +87,7 @@ public struct UnownedJob: Sendable {
   /// The priority of this job.
   @available(StdlibDeploymentTarget 5.9, *)
   public var priority: JobPriority {
-    let raw: UInt8
-    if #available(StdlibDeploymentTarget 6.3, *) {
-      raw = _jobGetPriority(context)
-    } else {
-      fatalError("we shouldn't get here; if we have, availability is broken")
-    }
-    return JobPriority(rawValue: raw)
+    JobPriority(rawValue: _jobGetPriority(context))
   }
 
   @available(StdlibDeploymentTarget 5.9, *)
@@ -226,13 +220,7 @@ public struct Job: Sendable, ~Copyable {
   }
 
   public var priority: JobPriority {
-    let raw: UInt8
-    if #available(StdlibDeploymentTarget 6.3, *) {
-      raw = _jobGetPriority(self.context)
-    } else {
-      fatalError("we shouldn't get here; if we have, availability is broken")
-    }
-    return JobPriority(rawValue: raw)
+    return JobPriority(rawValue: _jobGetPriority(self.context))
   }
 
   // TODO: move only types cannot conform to protocols, so we can't conform to CustomStringConvertible;
@@ -300,20 +288,10 @@ public struct ExecutorJob: Sendable, ~Copyable {
 
   internal(set) public var priority: JobPriority {
     get {
-      let raw: UInt8
-      if #available(StdlibDeploymentTarget 6.3, *) {
-        raw = _jobGetPriority(self.context)
-      } else {
-        fatalError("we shouldn't get here; if we have, availability is broken")
-      }
-      return JobPriority(rawValue: raw)
+      JobPriority(rawValue: _jobGetPriority(self.context))
     }
     set {
-      if #available(StdlibDeploymentTarget 6.3, *) {
-        _jobSetPriority(self.context, newValue.rawValue)
-      } else {
-        fatalError("we shouldn't get here; if we have, availability is broken")
-      }
+      _jobSetPriority(self.context, newValue.rawValue)
     }
   }
 
@@ -895,8 +873,20 @@ internal func _resumeUnsafeThrowingContinuationWithError<T>(
 @available(SwiftStdlib 5.1, *)
 @_alwaysEmitIntoClient
 @unsafe
-public func withUnsafeContinuation<T>(
-  isolation: isolated (any Actor)? = #isolation,
+public nonisolated(nonsending) func withUnsafeContinuation<T>(
+  _ fn: (UnsafeContinuation<T, Never>) -> Void
+) async -> sending T {
+  return await Builtin.withUnsafeContinuation {
+    unsafe fn(UnsafeContinuation<T, Never>($0))
+  }
+}
+
+@available(SwiftStdlib 5.1, *)
+@_alwaysEmitIntoClient
+@unsafe
+@available(*, deprecated, message: "Replaced by nonisolated(nonsending) overload")
+public func withUnsafeContinuation<T>( // source-compatibility overload
+  isolation: isolated (any Actor)?,
   _ fn: (UnsafeContinuation<T, Never>) -> Void
 ) async -> sending T {
   return await Builtin.withUnsafeContinuation {
@@ -932,10 +922,24 @@ public func withUnsafeContinuation<T>(
 @available(SwiftStdlib 5.1, *)
 @_alwaysEmitIntoClient
 @unsafe
-public func withUnsafeThrowingContinuation<T>(
-  isolation: isolated (any Actor)? = #isolation,
+public nonisolated(nonsending) func withUnsafeThrowingContinuation<T, E>(
+  _ fn: (UnsafeContinuation<T, E>) -> Void
+) async throws(E) -> sending T {
+  do {
+    return try await Builtin.withUnsafeThrowingContinuation {
+      unsafe fn(UnsafeContinuation<T, E>($0))
+    }
+  } catch {
+    throw error as! E
+  }
+}
+
+@available(SwiftStdlib 5.1, *)
+@_alwaysEmitIntoClient
+@unsafe
+public nonisolated(nonsending) func withUnsafeThrowingContinuation<T>(
   _ fn: (UnsafeContinuation<T, Error>) -> Void
-) async throws -> sending T {
+) async throws(Error) -> sending T {
   return try await Builtin.withUnsafeThrowingContinuation {
     unsafe fn(UnsafeContinuation<T, Error>($0))
   }
