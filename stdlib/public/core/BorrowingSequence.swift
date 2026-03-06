@@ -133,26 +133,27 @@ public struct BorrowingSpanIterator<Element: ~Copyable>: IteratorProtocol, ~Copy
   }
 }
 
-@available(SwiftStdlib 6.4, *)
-public struct MutatingSpanIterator<Element: ~Copyable>: IteratorProtocol, ~Copyable, ~Escapable {
-  @usableFromInline
-  var span: MutableSpan<Element>
-  @usableFromInline
-  var offset = 0
-  
-  @_lifetime(&elements)
-  public init(_ elements: inout MutableSpan<Element>) {
-    self.span = elements
-  }
-  
-  @_lifetime(copy self)
-  @inlinable
-  public mutating func next() -> Inout<Element>? {
-    guard offset < span.count else { return nil }
-    defer { offset += 1 }
-    return span._mutateElement(at: offset)
-  }
-}
+//@available(SwiftStdlib 6.4, *)
+//public struct MutatingSpanIterator<Element: ~Copyable>: IteratorProtocol, ~Copyable, ~Escapable {
+//  @usableFromInline
+//  var span: MutableSpan<Element>
+//  @usableFromInline
+//  var offset = 0
+//  
+//  @_lifetime(copy elements)
+//  public init(_ elements: consuming MutableSpan<Element>) {
+//    self.span = elements
+//  }
+//  
+//  @_lifetime(copy self)
+//  @inlinable
+//  public mutating func next() -> Inout<Element>? {
+//    guard offset < span.count else { return nil }
+//    let io = span._mutateElement(at: offset)
+//    offset += 1
+//    return unsafe _overrideLifetime(io, copying: self)
+//  }
+//}
 
 @available(SwiftStdlib 6.4, *)
 extension LazyMapIter: Copyable where Iter: Copyable & ~Escapable, Iter.Element: ~Copyable & ~Escapable, NewElement: ~Copyable & ~Escapable {}
