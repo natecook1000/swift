@@ -6153,6 +6153,19 @@ void PrintAST::visitGuardStmt(GuardStmt *stmt) {
   visit(stmt->getBody());
 }
 
+void PrintAST::visitGuardCatchStmt(GuardCatchStmt *stmt) {
+  Printer << tok::kw_guard << " ";
+  printStmtCondition(stmt->getCond());
+  if (stmt->getBody()) {
+    Printer << " else ";
+    visit(stmt->getBody());
+  }
+  for (auto *C : stmt->getCatches()) {
+    Printer << " ";
+    visit(C);
+  }
+}
+
 void PrintAST::visitWhileStmt(WhileStmt *stmt) {
   Printer << tok::kw_while << " ";
   printStmtCondition(stmt->getCond());

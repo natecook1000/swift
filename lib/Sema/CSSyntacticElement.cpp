@@ -725,6 +725,10 @@ private:
     createConjunction(elements, locator);
   }
 
+  void visitGuardCatchStmt(GuardCatchStmt *guardStmt) {
+    llvm_unreachable("GuardCatchStmt constraint generation not yet implemented");
+  }
+
   void visitWhileStmt(WhileStmt *whileStmt) {
     SmallVector<ElementInfo, 4> elements;
 
@@ -1699,6 +1703,10 @@ private:
     auto *body = cast<Stmt *>(visit(guardStmt->getBody()));
     guardStmt->setBody(cast<BraceStmt>(body));
     return guardStmt;
+  }
+
+  ASTNode visitGuardCatchStmt(GuardCatchStmt *guardStmt) {
+    llvm_unreachable("GuardCatchStmt solution application not yet implemented");
   }
 
   ASTNode visitWhileStmt(WhileStmt *whileStmt) {

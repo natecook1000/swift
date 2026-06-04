@@ -61,6 +61,8 @@ StringRef Stmt::getDescriptiveKindName(StmtKind K) {
     return "if";
   case StmtKind::Guard:
     return "guard";
+  case StmtKind::GuardCatch:
+    return "guard";
   case StmtKind::While:
     return "while";
   case StmtKind::Do:
@@ -427,6 +429,7 @@ bool LabeledStmt::isPossibleContinueTarget() const {
   // statements return false from this method.
   case StmtKind::If:
   case StmtKind::Guard:
+  case StmtKind::GuardCatch:
   case StmtKind::Switch:
     return false;
 
@@ -451,6 +454,7 @@ bool LabeledStmt::requiresLabelOnJump() const {
   case StmtKind::Do:
   case StmtKind::DoCatch:
   case StmtKind::Guard: // Guard doesn't allow labels, so no break/continue.
+  case StmtKind::GuardCatch:
     return true;
 
   case StmtKind::RepeatWhile:
@@ -776,6 +780,39 @@ bool IfStmt::isSyntacticallyExhaustive() const {
 GuardStmt::GuardStmt(SourceLoc GuardLoc, Expr *Cond, BraceStmt *Body,
                      std::optional<bool> implicit, ASTContext &Ctx)
     : GuardStmt(GuardLoc, exprToCond(Cond, Ctx), Body, implicit) {}
+
+GuardCatchStmt::GuardCatchStmt(SourceLoc GuardLoc, StmtCondition Cond,
+                               BraceStmt *Body, ArrayRef<CaseStmt *> Catches,
+                               std::optional<bool> implicit)
+    : LabeledConditionalStmt(StmtKind::GuardCatch,
+                             getDefaultImplicitFlag(implicit, GuardLoc),
+                             LabeledStmtInfo(), Cond),
+      GuardLoc(GuardLoc), Body(Body) {
+  Bits.GuardCatchStmt.NumCatches = Catches.size();
+  std::uninitialized_copy(Catches.begin(), Catches.end(),
+                          getTrailingObjects());
+  for (auto *catchStmt : getCatches())
+    catchStmt->setParentStmt(this);
+}
+
+GuardCatchStmt *GuardCatchStmt::create(ASTContext &ctx, SourceLoc guardLoc,
+                                       StmtCondition cond, BraceStmt *body,
+                                       ArrayRef<CaseStmt *> catches,
+                                       std::optional<bool> implicit) {
+  void *mem = ctx.Allocate(totalSizeToAlloc<CaseStmt *>(catches.size()),
+                           alignof(GuardCatchStmt));
+  return ::new (mem) GuardCatchStmt(guardLoc, cond, body, catches, implicit);
+}
+
+bool GuardCatchStmt::isSyntacticallyExhaustive() const {
+  for (auto clause : getCatches()) {
+    for (auto &LabelItem : clause->getCaseLabelItems()) {
+      if (LabelItem.isSyntacticallyExhaustive())
+        return true;
+    }
+  }
+  return false;
+}
 
 SourceLoc RepeatWhileStmt::getEndLoc() const { return Cond->getEndLoc(); }
 

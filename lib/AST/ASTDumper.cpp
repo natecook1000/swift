@@ -3344,6 +3344,16 @@ public:
     printFoot();
   }
 
+  void visitGuardCatchStmt(GuardCatchStmt *S, Label label) {
+    printCommon(S, "guard_catch_stmt", label);
+    printRecRange(S->getCond(), Ctx, Label::always("conditions"));
+    if (S->getBody())
+      printRec(S->getBody(), Label::optional("body"));
+    for (auto *C : S->getCatches())
+      printRec(C, Label::optional("catch"));
+    printFoot();
+  }
+
   void visitDoStmt(DoStmt *S, Label label) {
     printCommon(S, "do_stmt", label);
     printRec(S->getBody(), Label::optional("body"));

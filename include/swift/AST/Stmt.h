@@ -50,6 +50,7 @@ class SemanticAvailabilitySpecs;
 class VarDecl;
 class CaseStmt;
 class DoCatchStmt;
+class GuardCatchStmt;
 class IsSingleValueStmtResult;
 class SwitchStmt;
 
@@ -94,6 +95,11 @@ protected:
   SWIFT_INLINE_BITFIELD_EMPTY(LabeledStmt, Stmt);
 
   SWIFT_INLINE_BITFIELD_FULL(DoCatchStmt, LabeledStmt, 32,
+    : NumPadBits,
+    NumCatches : 32
+  );
+
+  SWIFT_INLINE_BITFIELD_FULL(GuardCatchStmt, LabeledStmt, 32,
     : NumPadBits,
     NumCatches : 32
   );
@@ -926,10 +932,11 @@ public:
   static bool classof(const Stmt *S) { return S->getKind() == StmtKind::If; }
 };
 
-/// GuardStmt - 'guard' statement.  Evaluate a condition and if it fails, run
-/// its body.  The body is always guaranteed to exit the current scope (or
-/// abort), it never falls through.
+/// GuardStmt - Classic 'guard' statement.  Evaluate a condition and if it
+/// fails, run the 'else' body.  The 'else' body is always guaranteed to exit
+/// the current scope (or abort); it never falls through.
 ///
+/// For guards with trailing catches, see GuardCatchStmt.
 class GuardStmt : public LabeledConditionalStmt {
   SourceLoc GuardLoc;
   BraceStmt *Body;
@@ -1338,9 +1345,13 @@ public:
 
   Stmt *getParentStmt() const { return ParentStmt; }
   void setParentStmt(Stmt *S) {
-    assert(S && "Parent statement must be SwitchStmt or DoCatchStmt");
+    assert(S && "Parent statement must be SwitchStmt, DoCatchStmt, or "
+                "GuardCatchStmt");
+    // CaseParentKind::DoCatch is shared by catches in 'do {} catch' and the
+    // trailing catches on a 'guard catch'; both are structurally identical.
     assert((ParentKind == CaseParentKind::Switch && isa<SwitchStmt>(S)) ||
-           (ParentKind == CaseParentKind::DoCatch && isa<DoCatchStmt>(S)));
+           (ParentKind == CaseParentKind::DoCatch &&
+            (isa<DoCatchStmt>(S) || isa<GuardCatchStmt>(S))));
     ParentStmt = S;
   }
 
@@ -1609,6 +1620,77 @@ public:
 
   static bool classof(const Stmt *S) {
     return S->getKind() == StmtKind::DoCatch;
+  }
+};
+
+/// GuardCatchStmt - A 'guard' statement with trailing catch clauses.
+///
+/// Two valid forms:
+///   guard cond else { ... } catch { ... }  // else + catches
+///   guard cond catch { ... }               // catches only
+///
+/// The 'else' body (if present) and each 'catch' body are guaranteed to exit
+/// the current scope (or abort); they never fall through.
+class GuardCatchStmt final
+    : public LabeledConditionalStmt,
+      private llvm::TrailingObjects<GuardCatchStmt, CaseStmt *> {
+  friend TrailingObjects;
+
+  SourceLoc GuardLoc;
+  /// The 'else' body, or null for catch-only guards.
+  BraceStmt *Body;
+  /// Type of the error thrown out of the condition list and caught by the
+  /// trailing catch clauses. Populated by Sema; null until then.
+  Type CaughtErrorType;
+  /// Optional rethrow conversion when catches re-throw.
+  ThrownErrorDestination RethrowDest;
+
+  GuardCatchStmt(SourceLoc GuardLoc, StmtCondition Cond, BraceStmt *Body,
+                 ArrayRef<CaseStmt *> Catches, std::optional<bool> implicit);
+
+public:
+  static GuardCatchStmt *create(ASTContext &ctx, SourceLoc guardLoc,
+                                StmtCondition cond, BraceStmt *body,
+                                ArrayRef<CaseStmt *> catches,
+                                std::optional<bool> implicit = std::nullopt);
+
+  SourceLoc getGuardLoc() const { return GuardLoc; }
+
+  SourceLoc getStartLoc() const { return getLabelLocOrKeywordLoc(GuardLoc); }
+  SourceLoc getEndLoc() const { return getCatches().back()->getEndLoc(); }
+
+  /// The 'else' body, or null for catch-only guards.
+  BraceStmt *getBody() const { return Body; }
+  void setBody(BraceStmt *s) { Body = s; }
+
+  /// Whether this guard has an 'else' body.
+  bool hasElseBody() const { return Body != nullptr; }
+
+  ArrayRef<CaseStmt *> getCatches() const {
+    return getTrailingObjects(
+        static_cast<size_t>(Bits.GuardCatchStmt.NumCatches));
+  }
+  MutableArrayRef<CaseStmt *> getMutableCatches() {
+    return getTrailingObjects(
+        static_cast<size_t>(Bits.GuardCatchStmt.NumCatches));
+  }
+
+  /// Does this statement contain a syntactically exhaustive catch clause?
+  bool isSyntacticallyExhaustive() const;
+
+  /// Type of the error thrown out of the condition list and caught by the
+  /// catch clauses.  Null until Sema populates it.
+  Type getCaughtErrorType() const { return CaughtErrorType; }
+  void setCaughtErrorType(Type t) { CaughtErrorType = t; }
+
+  ThrownErrorDestination rethrows() const { return RethrowDest; }
+  void setRethrows(ThrownErrorDestination rethrows) {
+    assert(!RethrowDest);
+    RethrowDest = rethrows;
+  }
+
+  static bool classof(const Stmt *S) {
+    return S->getKind() == StmtKind::GuardCatch;
   }
 };
 

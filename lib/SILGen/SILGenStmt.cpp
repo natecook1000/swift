@@ -1276,6 +1276,10 @@ void StmtEmitter::visitGuardStmt(GuardStmt *S) {
   SGF.emitStmtCondition(S->getCond(), bodyBB, S, NumNonTaken, NumFalseTaken);
 }
 
+void StmtEmitter::visitGuardCatchStmt(GuardCatchStmt *S) {
+  llvm_unreachable("GuardCatchStmt SILGen not yet implemented");
+}
+
 void StmtEmitter::visitWhileStmt(WhileStmt *S) {
   LexicalScope condBufferScope(SGF, S);
 

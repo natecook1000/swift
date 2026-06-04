@@ -178,6 +178,7 @@ void DiagnosticEmitter::emitMissingConsumeInDiscardingContext(
       case StmtKind::Defer:
       case StmtKind::If:
       case StmtKind::Guard:
+      case StmtKind::GuardCatch:
       case StmtKind::While:
       case StmtKind::Do:
       case StmtKind::DoCatch:

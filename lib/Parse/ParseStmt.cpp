@@ -1865,8 +1865,9 @@ ParserStatus Parser::parseStmtCondition(StmtCondition &Condition,
   while (true) {
 
     if (Context.LangOpts.hasFeature(Feature::TrailingComma)) {
-      // Condition terminator is `else` for `guard` statements.
-      if (ParentKind == StmtKind::Guard && Tok.is(tok::kw_else)) {
+      // Condition terminator is `else` or `catch` for `guard` statements.
+      if (ParentKind == StmtKind::Guard &&
+          Tok.isAny(tok::kw_else, tok::kw_catch)) {
         break;
       }
       // Condition terminator is start of statement body for `if` or `while`
@@ -2021,7 +2022,8 @@ ParserResult<Stmt> Parser::parseStmtIf(LabeledStmtInfo LabelInfo,
 }
 
 ///   stmt-guard:
-///     'guard' condition 'else' stmt-brace
+///     'guard' condition 'else' stmt-brace stmt-catch*
+///     'guard' condition stmt-catch+
 ///
 ParserResult<Stmt> Parser::parseStmtGuard() {
   SourceLoc GuardLoc = consumeToken(tok::kw_guard);
@@ -2061,25 +2063,60 @@ ParserResult<Stmt> Parser::parseStmtGuard() {
     }
   }
 
-  // Parse the 'else'.  If it is missing, and if the following token isn't a {
-  // then the parser is hopelessly lost - just give up instead of spewing.
-  if (!consumeIf(tok::kw_else)) {
+  // After the condition list a guard may be followed by:
+  //   - 'else { ... }' on its own, or
+  //   - 'else { ... }' followed by one or more 'catch' clauses, or
+  //   - one or more 'catch' clauses with no 'else'.
+  if (consumeIf(tok::kw_else)) {
+    Body = parseBraceItemList(diag::expected_lbrace_after_guard);
+    if (Body.isNull())
+      return recoverWithCond(Status, Condition);
+    Status |= Body;
+  } else if (!Tok.is(tok::kw_catch)) {
+    // Neither 'else' nor 'catch' follows: fall back to the missing-else
+    // diagnostic. If the next token is '{', offer the existing "insert 'else'"
+    // fix-it and continue trying to parse the body.
     checkForInputIncomplete();
     auto diag = diagnose(Tok, diag::expected_else_after_guard);
-    if (Tok.is(tok::l_brace))
+    if (Tok.is(tok::l_brace)) {
       diag.fixItInsert(Tok.getLoc(), "else ");
-    else
+      Body = parseBraceItemList(diag::expected_lbrace_after_guard);
+      if (Body.isNull())
+        return recoverWithCond(Status, Condition);
+      Status |= Body;
+    } else {
       return recoverWithCond(Status, Condition);
+    }
+  }
+  // If we did not enter block above, a 'catch' follows directly with no 'else';
+  // leave Body null and fall through to catch-clause parsing below.
+
+  // Parse any trailing 'catch' clauses.
+  SmallVector<CaseStmt *, 4> Catches;
+  if (Tok.is(tok::kw_catch)) {
+    ParserStatus catchClausesStatus;
+    do {
+      ParserResult<CaseStmt> clause = parseStmtCatch();
+      catchClausesStatus |= clause;
+      if (catchClausesStatus.hasCodeCompletion() && clause.isNull()) {
+        Status |= catchClausesStatus;
+        return makeParserResult<Stmt>(Status, nullptr);
+      }
+      // parseStmtCatch promises to return non-null unless we are completing
+      // inside the catch's pattern.
+      Catches.push_back(clause.get());
+    } while (Tok.is(tok::kw_catch) && !catchClausesStatus.hasCodeCompletion());
+    Status |= catchClausesStatus;
   }
 
-  Body = parseBraceItemList(diag::expected_lbrace_after_guard);
-  if (Body.isNull())
-    return recoverWithCond(Status, Condition);
-
-  Status |= Body;
-  
   return makeParserResult(Status,
-              new (Context) GuardStmt(GuardLoc, Condition, Body.get()));
+              Catches.empty()
+                  ? static_cast<Stmt *>(
+                        new (Context) GuardStmt(GuardLoc, Condition, Body.get()))
+                  : static_cast<Stmt *>(
+                        GuardCatchStmt::create(Context, GuardLoc, Condition,
+                                               Body.getPtrOrNull(),
+                                               Context.AllocateCopy(Catches))));
 }
 
 /// 

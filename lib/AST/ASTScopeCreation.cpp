@@ -481,6 +481,11 @@ public:
     return scopeCreator.constructExpandAndInsert<GuardStmtScope>(
       p, e, *endLoc);
   }
+  ASTScopeImpl *visitGuardCatchStmt(GuardCatchStmt *e, ASTScopeImpl *p,
+                                    ScopeCreator &scopeCreator) {
+    // TODO: proper scope for guard-catch (Section 2)
+    return p;
+  }
   ASTScopeImpl *visitTopLevelCodeDecl(TopLevelCodeDecl *d,
                                       ASTScopeImpl *p,
                                       ScopeCreator &scopeCreator) {

@@ -1124,6 +1124,7 @@ static bool typeCheckConditionForStatement(LabeledConditionalStmt *stmt,
       msg = diag::while_always_true;
       break;
     case StmtKind::Guard:
+    case StmtKind::GuardCatch:
       msg = diag::guard_always_succeeds;
       break;
     default:
@@ -1632,6 +1633,10 @@ public:
     typeCheckStmt(S);
     GS->setBody(S);
     return GS;
+  }
+
+  Stmt *visitGuardCatchStmt(GuardCatchStmt *GS) {
+    llvm_unreachable("GuardCatchStmt type-checking not yet implemented");
   }
 
   Stmt *visitDoStmt(DoStmt *DS) {

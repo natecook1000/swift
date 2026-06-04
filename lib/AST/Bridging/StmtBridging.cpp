@@ -219,6 +219,23 @@ BridgedGuardStmt BridgedGuardStmt_createParsed(BridgedASTContext cContext,
   return new (context) GuardStmt(guardLoc, cond, cBody.unbridged());
 }
 
+BridgedGuardCatchStmt
+BridgedGuardCatchStmt_createParsed(BridgedASTContext cContext,
+                                   SourceLoc guardLoc,
+                                   BridgedArrayRef cConds,
+                                   BridgedNullableBraceStmt cBody,
+                                   BridgedArrayRef cCatches) {
+  auto &context = cContext.unbridged();
+  StmtCondition cond = context.AllocateTransform<StmtConditionElement>(
+      cConds.unbridged<BridgedStmtConditionElement>(),
+      [](auto &e) { return e.unbridged(); });
+  auto catches = context.AllocateTransform<CaseStmt *>(
+      cCatches.unbridged<BridgedCaseStmt>(),
+      [](auto &c) { return c.unbridged(); });
+  return GuardCatchStmt::create(context, guardLoc, cond, cBody.unbridged(),
+                                catches);
+}
+
 BridgedIfStmt
 BridgedIfStmt_createParsed(BridgedASTContext cContext,
                            BridgedLabeledStmtInfo cLabelInfo, SourceLoc ifLoc,

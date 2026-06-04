@@ -46,7 +46,7 @@ extension ASTGenVisitor {
     case .forStmt(let node):
       return self.generate(forStmt: node).asStmt
     case .guardStmt(let node):
-      return self.generate(guardStmt: node).asStmt
+      return self.generate(guardStmt: node)
     case .labeledStmt(let node):
       return self.generate(labeledStmt: node)
     case .missingStmt:
@@ -398,13 +398,26 @@ extension ASTGenVisitor {
     )
   }
 
-  func generate(guardStmt node: GuardStmtSyntax, labelInfo: BridgedLabeledStmtInfo = nil) -> BridgedGuardStmt {
-    return .createParsed(
+  func generate(guardStmt node: GuardStmtSyntax, labelInfo: BridgedLabeledStmtInfo = nil) -> BridgedStmt {
+    let catches = self.generate(catchClauseList: node.catchClauses)
+    let conds = self.generate(conditionElementList: node.conditions)
+    let guardLoc = self.generateSourceLoc(node.guardKeyword)
+    if catches.count == 0 {
+      return BridgedGuardStmt.createParsed(
+        self.ctx,
+        guardLoc: guardLoc,
+        conds: conds,
+        body: self.generate(codeBlock: node.body!)
+      ).asStmt
+    }
+    let body = node.body.map { self.generate(codeBlock: $0) }
+    return BridgedGuardCatchStmt.createParsed(
       self.ctx,
-      guardLoc: self.generateSourceLoc(node.guardKeyword),
-      conds: self.generate(conditionElementList: node.conditions),
-      body: self.generate(codeBlock: node.body)
-    )
+      guardLoc: guardLoc,
+      conds: conds,
+      body: body.asNullable,
+      catches: catches
+    ).asStmt
   }
 
   func generateIfStmt(ifExpr node: IfExprSyntax, labelInfo: BridgedLabeledStmtInfo = nil) -> BridgedIfStmt {
@@ -463,7 +476,7 @@ extension ASTGenVisitor {
     case .forStmt(let node):
       return self.generate(forStmt: node, labelInfo: labelInfo).asStmt
     case .guardStmt(let node):
-      return self.generate(guardStmt: node, labelInfo: labelInfo).asStmt
+      return self.generate(guardStmt: node, labelInfo: labelInfo)
     case .repeatStmt(let node):
       return self.generate(repeatStmt: node, labelInfo: labelInfo).asStmt
     case .whileStmt(let node):

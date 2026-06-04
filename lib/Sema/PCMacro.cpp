@@ -91,6 +91,8 @@ public:
       return transformIfStmt(cast<IfStmt>(S));
     case StmtKind::Guard:
       return transformGuardStmt(cast<GuardStmt>(S));
+    case StmtKind::GuardCatch:
+      return S; // TODO: transform GuardCatchStmt in PCMacro mode
     case StmtKind::While: {
       return transformWhileStmt(cast<WhileStmt>(S));
     }

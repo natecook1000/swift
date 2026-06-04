@@ -117,6 +117,9 @@ namespace swift {
 #define AST_BRIDGING_WRAPPER_CONST_NONNULL(Name)
 #include "swift/AST/ASTBridgingWrappers.def"
 
+// BraceStmt is normally nonnull, but GuardCatchStmt's 'else' body is optional.
+BRIDGING_WRAPPER_NULLABLE(swift::BraceStmt, BraceStmt)
+
 //===----------------------------------------------------------------------===//
 // MARK: Identifier
 //===----------------------------------------------------------------------===//
@@ -2477,6 +2480,14 @@ BridgedGuardStmt BridgedGuardStmt_createParsed(BridgedASTContext cContext,
                                                swift::SourceLoc guardLoc,
                                                BridgedArrayRef cConds,
                                                BridgedBraceStmt cBody);
+
+SWIFT_NAME("BridgedGuardCatchStmt.createParsed(_:guardLoc:conds:body:catches:)")
+BridgedGuardCatchStmt
+BridgedGuardCatchStmt_createParsed(BridgedASTContext cContext,
+                                   swift::SourceLoc guardLoc,
+                                   BridgedArrayRef cConds,
+                                   BridgedNullableBraceStmt cBody,
+                                   BridgedArrayRef cCatches);
 
 SWIFT_NAME("BridgedIfStmt.createParsed(_:labelInfo:ifLoc:conditions:then:"
            "elseLoc:else:)")

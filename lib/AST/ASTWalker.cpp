@@ -2008,6 +2008,26 @@ Stmt *Traversal::visitGuardStmt(GuardStmt *US) {
   return US;
 }
 
+Stmt *Traversal::visitGuardCatchStmt(GuardCatchStmt *S) {
+  if (doIt(S->getCond()))
+    return nullptr;
+
+  if (S->getBody()) {
+    if (auto *newBody = cast_or_null<BraceStmt>(doIt(S->getBody())))
+      S->setBody(newBody);
+    else
+      return nullptr;
+  }
+
+  for (auto &C : S->getMutableCatches()) {
+    if (auto *newC = cast_or_null<CaseStmt>(doIt(C)))
+      C = newC;
+    else
+      return nullptr;
+  }
+  return S;
+}
+
 Stmt *Traversal::visitDoStmt(DoStmt *DS) {
   if (BraceStmt *S2 = cast_or_null<BraceStmt>(doIt(DS->getBody())))
     DS->setBody(S2);

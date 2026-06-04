@@ -166,6 +166,8 @@ public:
       return transformIfStmt(cast<IfStmt>(S));
     case StmtKind::Guard:
       return transformGuardStmt(cast<GuardStmt>(S));
+    case StmtKind::GuardCatch:
+      return S; // TODO: transform GuardCatchStmt in playground mode
     case StmtKind::While: {
       TargetKindSetter TKS(BracePairs, BracePair::TargetKinds::Break);
       return transformWhileStmt(cast<WhileStmt>(S));

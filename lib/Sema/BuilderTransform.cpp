@@ -196,7 +196,7 @@ protected:
 
       if (ctx.CompletionCallback && stmt->getSourceRange().isValid() &&
           !containsIDEInspectionTarget(stmt->getSourceRange(), ctx.SourceMgr) &&
-          !isa<GuardStmt>(stmt)) {
+          !isa<GuardStmt>(stmt) && !isa<GuardCatchStmt>(stmt)) {
         // A statement that doesn't contain the code completion expression can't
         // influence the type of the code completion expression, so we can skip
         // it to improve performance.
@@ -761,6 +761,7 @@ protected:
   UNSUPPORTED_STMT(Discard)
   UNSUPPORTED_STMT(Defer)
   UNSUPPORTED_STMT(Guard)
+  UNSUPPORTED_STMT(GuardCatch)
   UNSUPPORTED_STMT(While)
   UNSUPPORTED_STMT(DoCatch)
   UNSUPPORTED_STMT(RepeatWhile)
