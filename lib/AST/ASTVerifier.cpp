@@ -1161,14 +1161,15 @@ public:
       }
     }
 
-    void checkConditionElement(const StmtConditionElement &elt) {
+    void checkConditionElement(const StmtConditionElement &elt,
+                               bool allowNonBoolExpression = false) {
       switch (elt.getKind()) {
       case StmtConditionElement::CK_Availability:
       case StmtConditionElement::CK_HasSymbol:
         break;
       case StmtConditionElement::CK_Boolean: {
         auto *E = elt.getBoolean();
-        if (shouldVerifyChecked(E))
+        if (shouldVerifyChecked(E) && !allowNonBoolExpression)
           checkSameType(E->getType(), Ctx.getBoolType(), "condition type");
         break;
       }
@@ -1183,12 +1184,12 @@ public:
         break;
       }
     }
-    
-    void checkCondition(StmtCondition C) {
+
+    void checkCondition(StmtCondition C, bool allowNonBoolExpression = false) {
       for (auto elt : C)
-        checkConditionElement(elt);
+        checkConditionElement(elt, allowNonBoolExpression);
     }
-    
+
     void verifyChecked(IfStmt *S) {
       checkCondition(S->getCond());
       verifyCheckedBase(S);
@@ -1196,6 +1197,13 @@ public:
 
     void verifyChecked(GuardStmt *S) {
       checkCondition(S->getCond());
+      verifyCheckedBase(S);
+    }
+
+    void verifyChecked(GuardCatchStmt *S) {
+      // A bare expression element in a guard with catches may have a non-Bool
+      // type (e.g. 'try voidThrowing()' is Void).
+      checkCondition(S->getCond(), /*allowNonBoolExpression=*/true);
       verifyCheckedBase(S);
     }
 

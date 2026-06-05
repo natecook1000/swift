@@ -1823,7 +1823,7 @@ public:
 
   void emitBreakOutOf(SILLocation loc, Stmt *S);
 
-  void emitCatchDispatch(DoCatchStmt *S, ManagedValue exn,
+  void emitCatchDispatch(Stmt *S, ManagedValue exn,
                          ArrayRef<CaseStmt *> clauses,
                          JumpDest catchFallthroughDest);
 

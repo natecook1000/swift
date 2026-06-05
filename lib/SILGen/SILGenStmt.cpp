@@ -1277,7 +1277,79 @@ void StmtEmitter::visitGuardStmt(GuardStmt *S) {
 }
 
 void StmtEmitter::visitGuardCatchStmt(GuardCatchStmt *S) {
-  llvm_unreachable("GuardCatchStmt SILGen not yet implemented");
+  // Set up the failure block for emitStmtCondition.
+  // - When the guard has an 'else' body, emit it now into the failure block.
+  //   If the body falls through, mark it unreachable so dataflow diagnostics
+  //   fire 'guard_body_must_not_fallthrough'.
+  // - When the guard has no 'else' body (catch-only guard), create a
+  //   sacrificial failure block. Sema guarantees every condition is
+  //   irrefutable, so emitStmtCondition won't branch to it; we erase it
+  //   afterward if it has no predecessors.
+  JumpDest failureDest =
+      JumpDest(createBasicBlock(), SGF.getCleanupsDepth(), CleanupLocation(S));
+  bool hasElseBody = S->hasElseBody();
+
+  if (hasElseBody) {
+    SILGenSavedInsertionPoint savedIP(SGF, failureDest.getBlock());
+    SGF.emitProfilerIncrement(S->getBody());
+    SGF.emitStmt(S->getBody());
+
+    if (SGF.B.hasValidInsertionPoint()) {
+      SGF.B.createUnreachable(S);
+    }
+  }
+
+  // Emit catch dispatch BEFORE running emitStmtCondition so that catch
+  // bodies walk the cleanup stack at its outer-function depth, before any
+  // condition bindings have been pushed — otherwise `return`/`throw` in a
+  // catch would try to destroy bindings that don't exist on the throw path.
+  JumpDest throwDest = JumpDest::invalid();
+  {
+    Type formalExnType = S->getCaughtErrorType();
+    auto &exnTL = SGF.getTypeLowering(formalExnType);
+    SILValue exnArg;
+
+    // FIXME: opaque values
+    if (exnTL.isAddressOnly()) {
+      exnArg = SGF.B.createAllocStack(S, exnTL.getLoweredType());
+      SGF.enterDeallocStackCleanup(exnArg);
+    }
+
+    throwDest = createThrowDest(S, ThrownErrorInfo(exnArg));
+
+    // FIXME: opaque values
+    if (!exnTL.isAddressOnly()) {
+      exnArg = throwDest.getBlock()->createPhiArgument(
+          exnTL.getLoweredType(), OwnershipKind::Owned);
+    }
+
+    // JumpDest::invalid() as the fallthrough dest causes emitCatchDispatch
+    // to emit createUnreachable at the end of any catch body that falls
+    // through — guard catches must exit the scope.
+    SILGenSavedInsertionPoint savedIP(SGF, throwDest.getBlock(),
+                                      FunctionSection::Postmatter);
+    Scope exnScope(SGF.Cleanups, CleanupLocation(S));
+    ManagedValue exn = SGF.emitManagedRValueWithCleanup(exnArg, exnTL);
+    SGF.emitCatchDispatch(S, exn, S->getCatches(), JumpDest::invalid());
+    assert(!SGF.B.hasValidInsertionPoint());
+  }
+
+  // Emit the condition bindings, branching to failureDest if they fail
+  // and routing thrown errors to throwDest when catches are present.
+  auto NumFalseTaken = hasElseBody ? SGF.loadProfilerCount(S->getBody())
+                                   : ProfileCounter();
+  auto NumNonTaken = SGF.loadProfilerCount(S);
+
+  {
+    llvm::SaveAndRestore<JumpDest> savedThrowDest(SGF.ThrowDest, throwDest);
+    SGF.emitStmtCondition(S->getCond(), failureDest, S, NumNonTaken,
+                          NumFalseTaken);
+  }
+
+  // For catch-only guards, erase the sacrificial failure block if it was
+  // never branched to (Sema guaranteed all conditions are irrefutable).
+  if (!hasElseBody && failureDest.getBlock()->pred_empty())
+    SGF.eraseBasicBlock(failureDest.getBlock());
 }
 
 void StmtEmitter::visitWhileStmt(WhileStmt *S) {

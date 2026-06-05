@@ -124,6 +124,18 @@ static void diagnoseUnreachable(const SILInstruction *I,
                diag::guard_body_must_not_fallthrough);
       return;
     }
+
+    // A CaseStmt parented to a GuardCatchStmt is a trailing catch clause.
+    // Catch bodies, like guard else bodies, must exit the scope.
+    if (auto *Case = L.getAsASTNode<CaseStmt>()) {
+      if (Case->getParentKind() == CaseParentKind::DoCatch) {
+        if (isa_and_nonnull<GuardCatchStmt>(Case->getParentStmt())) {
+          diagnose(Context, Case->getBody()->getEndLoc(),
+                   diag::guard_catch_body_must_not_fallthrough);
+          return;
+        }
+      }
+    }
   }
 }
 

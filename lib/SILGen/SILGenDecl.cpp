@@ -1913,7 +1913,20 @@ void SILGenFunction::emitStmtCondition(StmtCondition Cond, JumpDest FalseDest,
 
     case StmtConditionElement::CK_Boolean: { // Handle boolean conditions.
       auto *expr = elt.getBoolean();
-      // Evaluate the condition as an i1 value (guaranteed by Sema).
+
+      // In a guard with trailing catches a bare expression element may have
+      // a non-Bool type (e.g. 'try voidThrowing()' is Void). Evaluate it
+      // for side effects only — any throw routes to the catches via ThrowDest.
+      auto exprTy = expr->getType();
+      if (!exprTy || !exprTy->isEqual(getASTContext().getBoolType())) {
+        FullExpr Scope(Cleanups, CleanupLocation(expr));
+        FormalEvaluationScope EvalScope(*this);
+        emitIgnoredExpr(expr);
+        continue;
+      }
+
+      // Evaluate the condition as an i1 value (guaranteed by Sema for
+      // Bool-typed conditions).
       FullExpr Scope(Cleanups, CleanupLocation(expr));
       FormalEvaluationScope EvalScope(*this);
       booleanTestValue = emitRValue(expr).forwardAsSingleValue(*this, expr);

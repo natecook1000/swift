@@ -3901,7 +3901,7 @@ void SILGenFunction::emitSwitchFallthrough(FallthroughStmt *S) {
   Cleanups.emitBranchAndCleanups(sharedDest, S, args);
 }
 
-void SILGenFunction::emitCatchDispatch(DoCatchStmt *S, ManagedValue exn,
+void SILGenFunction::emitCatchDispatch(Stmt *S, ManagedValue exn,
                                        ArrayRef<CaseStmt *> clauses,
                                        JumpDest catchFallthroughDest) {
 
@@ -3956,9 +3956,14 @@ void SILGenFunction::emitCatchDispatch(DoCatchStmt *S, ManagedValue exn,
 
       emitStmt(clause->getBody());
 
-      // If we fell out of the catch clause, branch to the fallthrough dest.
+      // If we fell out of the catch clause, branch to the fallthrough dest;
+      // for guard catches the dest is invalid — emit unreachable so dataflow
+      // diagnostics attribute the fall-through to this specific catch.
       if (B.hasValidInsertionPoint()) {
-        Cleanups.emitBranchAndCleanups(catchFallthroughDest, clause->getBody());
+        if (catchFallthroughDest.isValid())
+          Cleanups.emitBranchAndCleanups(catchFallthroughDest, clause->getBody());
+        else
+          B.createUnreachable(clause);
       }
       return;
     }
@@ -4034,8 +4039,8 @@ void SILGenFunction::emitCatchDispatch(DoCatchStmt *S, ManagedValue exn,
 
   // Add a row for each label of each case.
   SmallVector<ClauseRow, 8> clauseRows;
-  clauseRows.reserve(S->getCatches().size());
-  for (auto caseBlock : S->getCatches()) {
+  clauseRows.reserve(clauses.size());
+  for (auto caseBlock : clauses) {
     // If we have multiple case label items, create a shared case block to
     // generate the shared block.
     if (caseBlock->getCaseLabelItems().size() > 1) {
@@ -4104,9 +4109,14 @@ void SILGenFunction::emitCatchDispatch(DoCatchStmt *S, ManagedValue exn,
   [&](CaseStmt *caseStmt) {
     emitStmt(caseStmt->getBody());
 
-    // If we fell out of the catch clause, branch to the fallthrough dest.
+    // If we fell out of the catch clause, branch to the fallthrough dest;
+    // for guard catches the dest is invalid — emit unreachable so dataflow
+    // diagnostics attribute the fall-through to this specific catch.
     if (B.hasValidInsertionPoint()) {
-      Cleanups.emitBranchAndCleanups(catchFallthroughDest, caseStmt->getBody());
+      if (catchFallthroughDest.isValid())
+        Cleanups.emitBranchAndCleanups(catchFallthroughDest, caseStmt->getBody());
+      else
+        B.createUnreachable(caseStmt);
     }
   });
 }
