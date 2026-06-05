@@ -1222,6 +1222,11 @@ bool Decl::hasExplicitIsolationAttribute() const {
     }
   }
 
+  if (auto concurrentAttr = getAttrs().getAttribute<ConcurrentAttr>()) {
+    if (!concurrentAttr->isImplicit())
+      return true;
+  }
+
   if (auto globalActorAttr = getGlobalActorAttr()) {
     if (!globalActorAttr->first->isImplicit())
       return true;
@@ -6785,7 +6790,10 @@ void NominalTypeDecl::synthesizeSemanticMembersIfNeeded(DeclName member) {
 
   if (member.isSimpleName() && !baseName.isSpecial()) {
     if (baseName.getIdentifier() == Context.Id_CodingKeys) {
-      action.emplace(ImplicitMemberAction::ResolveCodingKeys);
+      // Only request CodingKeys synthesis if no explicit CodingKeys exists.
+      // lookupDirect does not trigger synthesis, so this is safe from cycles.
+      if (lookupDirect(DeclName(Context.Id_CodingKeys)).empty())
+        action.emplace(ImplicitMemberAction::ResolveCodingKeys);
     }
   } else {
     auto argumentNames = member.getArgumentNames();
