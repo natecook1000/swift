@@ -737,6 +737,8 @@ public:
       recurse = asImpl().checkThrow(thr);
     } else if (auto forEach = dyn_cast<ForEachStmt>(S)) {
       recurse = asImpl().checkForEach(forEach);
+    } else if (auto guard = dyn_cast<GuardCatchStmt>(S)) {
+      recurse = asImpl().checkGuardCatches(guard);
     } else if (auto labeled = dyn_cast<LabeledConditionalStmt>(S)) {
       asImpl().noteLabeledConditionalStmt(labeled);
     } else if (auto defer = dyn_cast<DeferStmt>(S)) {
@@ -756,6 +758,23 @@ public:
     for (auto clause : S->getCatches()) {
       asImpl().checkCatch(clause, bodyResult);
     }
+    return ShouldNotRecurse;
+  }
+
+  /// Walk a guard statement with trailing catches, mirroring checkDoCatch.
+  /// The guard's condition list is the "covered region" — errors thrown there
+  /// are caught by the trailing catches. The else body (if any) is walked
+  /// normally; catches are dispatched per-clause.
+  ShouldRecurse_t checkGuardCatches(GuardCatchStmt *S) {
+    asImpl().noteLabeledConditionalStmt(S);
+    auto condResult = (S->isSyntacticallyExhaustive()
+        ? asImpl().checkExhaustiveGuardConditions(S)
+        : asImpl().checkNonExhaustiveGuardConditions(S));
+    for (auto clause : S->getCatches()) {
+      asImpl().checkCatch(clause, condResult);
+    }
+    if (auto *body = S->getBody())
+      body->walk(*this);
     return ShouldNotRecurse;
   }
 
@@ -2319,6 +2338,38 @@ private:
       }
     }
 
+    ConditionalEffectKind checkExhaustiveGuardConditions(GuardCatchStmt *S) {
+      llvm::SaveAndRestore<Classification> savedClassification(
+          classification, Classification());
+      walkGuardConditionExprs(S);
+      return classification.getConditionalKind(EffectKind::Throws);
+    }
+
+    ConditionalEffectKind checkNonExhaustiveGuardConditions(GuardCatchStmt *S) {
+      walkGuardConditionExprs(S);
+      return ConditionalEffectKind::None;
+    }
+
+  private:
+    void walkGuardConditionExprs(GuardCatchStmt *S) {
+      for (auto &elt : S->getCond()) {
+        switch (elt.getKind()) {
+        case StmtConditionElement::CK_Boolean:
+          if (auto *expr = elt.getBooleanOrNull())
+            expr->walk(*this);
+          break;
+        case StmtConditionElement::CK_PatternBinding:
+          if (auto *init = elt.getInitializerOrNull())
+            init->walk(*this);
+          break;
+        case StmtConditionElement::CK_Availability:
+        case StmtConditionElement::CK_HasSymbol:
+          break;
+        }
+      }
+    }
+
+  public:
     void visitExprPre(Expr *expr) { return; }
   };
 
@@ -2402,6 +2453,22 @@ private:
       return ShouldRecurse;
     }
 
+    ShouldRecurse_t checkGuardCatches(GuardCatchStmt *S) {
+      return ShouldRecurse;
+    }
+
+    ConditionalEffectKind checkExhaustiveGuardConditions(GuardCatchStmt *S) {
+      return ConditionalEffectKind::None;
+    }
+
+    ConditionalEffectKind checkNonExhaustiveGuardConditions(GuardCatchStmt *S) {
+      return ConditionalEffectKind::None;
+    }
+
+  private:
+    void walkGuardConditionExprs(GuardCatchStmt *S) { }
+
+  public:
     ShouldRecurse_t checkForEach(ForEachStmt *S) {
       if (S->getAwaitLoc().isValid()) {
         AsyncKind = std::max(AsyncKind, ConditionalEffectKind::Always);
@@ -2511,6 +2578,18 @@ private:
 
     ShouldRecurse_t checkDoCatch(DoCatchStmt *S) {
       return ShouldRecurse;
+    }
+
+    ShouldRecurse_t checkGuardCatches(GuardCatchStmt *S) {
+      return ShouldRecurse;
+    }
+
+    ConditionalEffectKind checkExhaustiveGuardConditions(GuardCatchStmt *S) {
+      return ConditionalEffectKind::None;
+    }
+
+    ConditionalEffectKind checkNonExhaustiveGuardConditions(GuardCatchStmt *S) {
+      return ConditionalEffectKind::None;
     }
 
     ShouldRecurse_t checkForEach(ForEachStmt *S) {
@@ -4167,6 +4246,68 @@ private:
     return MaxThrowingKind;
   }
 
+  /// Same as checkExhaustiveDoBody, but the covered region is the guard's
+  /// condition list rather than a brace body.
+  ConditionalEffectKind checkExhaustiveGuardConditions(GuardCatchStmt *S) {
+    ContextScope scope(*this, CurContext.withHandlesErrors());
+    assert(!Flags.has(ContextFlags::IsInTry) && "guard catch within try?");
+    scope.resetCoverageForDoCatch();
+
+    walkGuardConditionExprs(S);
+
+    diagnoseNoThrowInGuard(S);
+
+    return MaxThrowingKind;
+  }
+
+  ConditionalEffectKind checkNonExhaustiveGuardConditions(GuardCatchStmt *S) {
+    ContextScope scope(*this, std::nullopt);
+    assert(!Flags.has(ContextFlags::IsInTry) && "guard catch within try?");
+    scope.resetCoverageForDoCatch();
+
+    if (!CurContext.handlesThrows(ConditionalEffectKind::Conditional)) {
+      CurContext.setNonExhaustiveCatch(true);
+    } else if (Type rethrownErrorType = S->getCaughtErrorType()) {
+      auto catches = S->getCatches();
+      S->setRethrows(
+          checkThrownErrorType(catches.back()->getEndLoc(), rethrownErrorType));
+    }
+
+    walkGuardConditionExprs(S);
+
+    diagnoseNoThrowInGuard(S);
+
+    scope.preserveCoverageFromNonExhaustiveCatch();
+    return MaxThrowingKind;
+  }
+
+private:
+  void diagnoseNoThrowInGuard(GuardCatchStmt *S) {
+    if (Flags.has(ContextFlags::HasAnyThrowSite))
+      return;
+    Ctx.Diags.diagnose(S->getCatches().front()->getStartLoc(),
+                       diag::no_throw_in_guard_with_catch);
+  }
+
+  void walkGuardConditionExprs(GuardCatchStmt *S) {
+    for (auto &elt : S->getCond()) {
+      switch (elt.getKind()) {
+      case StmtConditionElement::CK_Boolean:
+        if (auto *expr = elt.getBooleanOrNull())
+          expr->walk(*this);
+        break;
+      case StmtConditionElement::CK_PatternBinding:
+        if (auto *init = elt.getInitializerOrNull())
+          init->walk(*this);
+        break;
+      case StmtConditionElement::CK_Availability:
+      case StmtConditionElement::CK_HasSymbol:
+        break;
+      }
+    }
+  }
+
+public:
   /// Determine whether the inactive code within the given body range
   /// contains a "try" or a "throw".
   bool inactiveCodeContainsTryOrThrow(SourceRange bodyRange) {
@@ -5127,6 +5268,38 @@ Type TypeChecker::catchErrorType(DeclContext *dc, DoCatchStmt *stmt) {
         stmt->isSyntacticallyExhaustive())
       return ctx.getErrorExistentialType();
 
+    return ctx.getNeverType();
+  }
+
+  return classification.getThrownError();
+}
+
+Type TypeChecker::catchErrorType(DeclContext *dc, GuardCatchStmt *stmt) {
+  ASTContext &ctx = dc->getASTContext();
+
+  // Classify each condition element's throwing potential.
+  ApplyClassifier classifier(ctx);
+  Classification classification;
+  for (const auto &elt : stmt->getCond()) {
+    switch (elt.getKind()) {
+    case StmtConditionElement::CK_Boolean:
+      if (auto *expr = elt.getBooleanOrNull())
+        classification.merge(classifier.classifyExpr(expr, EffectKind::Throws));
+      break;
+    case StmtConditionElement::CK_PatternBinding:
+      if (auto *init = elt.getInitializerOrNull())
+        classification.merge(classifier.classifyExpr(init, EffectKind::Throws));
+      break;
+    case StmtConditionElement::CK_Availability:
+    case StmtConditionElement::CK_HasSymbol:
+      break;
+    }
+  }
+
+  if (!classification.hasThrows()) {
+    if (!ctx.LangOpts.hasFeature(Feature::FullTypedThrows) &&
+        stmt->isSyntacticallyExhaustive())
+      return ctx.getErrorExistentialType();
     return ctx.getNeverType();
   }
 

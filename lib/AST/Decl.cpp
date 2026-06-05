@@ -13741,6 +13741,11 @@ bool ExplicitCaughtTypeRequest::isCached() const {
     return doCatch->getThrowsLoc().isValid();
   }
 
+  // Guard-catch statements don't have an explicit thrown type annotation,
+  // so they don't need caching.
+  if (catchNode.is<GuardCatchStmt *>())
+    return false;
+
   llvm_unreachable("Unhandled catch node");
 }
 
@@ -13771,6 +13776,9 @@ std::optional<Type> ExplicitCaughtTypeRequest::getCachedResult() const {
     return nonnullTypeOrNone(doCatch->ThrownType.getType());
   }
 
+  if (catchNode.is<GuardCatchStmt *>())
+    return std::nullopt;
+
   llvm_unreachable("Unhandled catch node");
 }
 
@@ -13795,6 +13803,9 @@ void ExplicitCaughtTypeRequest::cacheResult(Type type) const {
     doCatch->ThrownType.setType(type);
     return;
   }
+
+  if (catchNode.is<GuardCatchStmt *>())
+    return; // GuardCatchStmt doesn't cache an explicit thrown type.
 
   llvm_unreachable("Unhandled catch node");
 }

@@ -2726,7 +2726,7 @@ public:
 /// resolution into pre-checking, we could make this uncached.
 class ResolvePatternRequest
     : public SimpleRequest<ResolvePatternRequest,
-                           Pattern *(Pattern *, DeclContext *, bool),
+                           Pattern *(Pattern *, DeclContext *, bool, bool),
                            RequestFlags::Cached> {
 public:
   using SimpleRequest::SimpleRequest;
@@ -2736,7 +2736,7 @@ private:
 
   // Evaluation.
   Pattern *evaluate(Evaluator &evaluator, Pattern *P, DeclContext *DC,
-                    bool isStmtCondition) const;
+                    bool isStmtCondition, bool bindingIsIrrefutable) const;
 public:
   // Cached.
   bool isCached() const { return true; }

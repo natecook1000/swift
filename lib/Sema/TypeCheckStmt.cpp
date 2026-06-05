@@ -1020,16 +1020,93 @@ static bool typeCheckHasSymbolStmtConditionElement(StmtConditionElement &elt,
 }
 
 static bool typeCheckBooleanStmtConditionElement(StmtConditionElement &elt,
-                                                 DeclContext *dc) {
+                                                 DeclContext *dc,
+                                                 bool expressionsCanBeNonBool) {
   Expr *E = elt.getBoolean();
-  bool hadError = TypeChecker::typeCheckCondition(E, dc);
+  bool hadError;
+  if (expressionsCanBeNonBool) {
+    // In a guard with trailing catches, a bare expression element may be a
+    // side-effecting throwing expression (e.g. 'try voidThrowing()') with a
+    // non-Bool result type rather than a Bool condition. Type-check without
+    // imposing a Bool context; if the result happens to be Bool, SILGen
+    // will branch on it like any other Bool condition.
+    hadError = TypeChecker::typeCheckExpression(E, dc).isNull();
+  } else {
+    hadError = TypeChecker::typeCheckCondition(E, dc);
+  }
   elt.setBoolean(E);
   return hadError;
 }
 
+/// Inspect a pattern-binding initializer's syntactic form to guess whether
+/// it is a non-Optional throwing call. Used as a per-element override in
+/// guards with trailing catches: if the init is syntactically a throwing
+/// call to a function whose declared return type isn't Optional, the
+/// binding is treated as irrefutable (no implicit Optional unwrap), so
+/// 'let n = try throwingNonOptional()' binds n directly to the result.
+///
+/// This is intentionally a syntactic heuristic, not a full type-check —
+/// pre-typing the init via the constraint solver would strip throws
+/// context and double-type the expression on the next pass. The heuristic
+/// covers calls to declared functions (including typed throws); other
+/// shapes fall through to today's auto-wrap behaviour.
+static bool initIsLikelyNonOptionalThrowingCall(Expr *init, DeclContext *dc) {
+  if (!init)
+    return false;
+
+  // Strip outer 'try' — only present if the init is throwing. Optional-try
+  // and force-try don't actually route through the catches.
+  auto *tryExpr = dyn_cast<AnyTryExpr>(init);
+  if (!tryExpr)
+    return false;
+  if (isa<OptionalTryExpr>(tryExpr) || isa<ForceTryExpr>(tryExpr))
+    return false;
+
+  Expr *body = tryExpr->getSubExpr()->getSemanticsProvidingExpr();
+  auto *call = dyn_cast<CallExpr>(body);
+  if (!call)
+    return false;
+
+  // Resolve the called function's declared interface type. The init is
+  // pre-Sema here, so the function reference may be unresolved; do a
+  // name lookup for the simple top-level/member case.
+  Expr *fn = call->getFn()->getSemanticsProvidingExpr();
+  AbstractFunctionDecl *callee = nullptr;
+  if (auto *declRef = dyn_cast<DeclRefExpr>(fn)) {
+    callee = dyn_cast_or_null<AbstractFunctionDecl>(declRef->getDecl());
+  } else if (auto *member = dyn_cast<MemberRefExpr>(fn)) {
+    callee = dyn_cast_or_null<AbstractFunctionDecl>(member->getMember().getDecl());
+  } else if (auto *dotSyntax = dyn_cast<DotSyntaxCallExpr>(fn)) {
+    if (auto *innerRef =
+            dyn_cast<DeclRefExpr>(dotSyntax->getFn()->getSemanticsProvidingExpr()))
+      callee = dyn_cast_or_null<AbstractFunctionDecl>(innerRef->getDecl());
+  } else if (auto *unresolved = dyn_cast<UnresolvedDeclRefExpr>(fn)) {
+    auto results = TypeChecker::lookupUnqualified(dc, unresolved->getName(),
+                                                  unresolved->getLoc());
+    // Only honor an unambiguous result. Overloads with mixed Optionalness
+    // would defeat the heuristic; fall through to auto-wrap in that case.
+    if (results.size() == 1)
+      callee = dyn_cast<AbstractFunctionDecl>(results[0].getValueDecl());
+  }
+  if (!callee)
+    return false;
+
+  if (auto *fd = dyn_cast<FuncDecl>(callee)) {
+    if (!fd->hasThrows())
+      return false;
+    Type result = fd->getResultInterfaceType();
+    if (!result || result->hasError())
+      return false;
+    return result->getOptionalObjectType().isNull();
+  }
+  return false;
+}
+
 static bool
 typeCheckPatternBindingStmtConditionElement(StmtConditionElement &elt,
-                                            bool &isFalsable, DeclContext *dc) {
+                                            bool &isFalsable, DeclContext *dc,
+                                            bool bindingIsIrrefutable,
+                                            bool parentGuardHasCatches) {
   auto &Context = dc->getASTContext();
 
   // This is cleanup goop run on the various paths where type checking of the
@@ -1047,11 +1124,18 @@ typeCheckPatternBindingStmtConditionElement(StmtConditionElement &elt,
     });
   };
 
-  // Resolve the pattern.
+  // Resolve the pattern. For catch-only guards, decide per-element
+  // whether to skip the implicit Optional unwrap.
   assert(!elt.getPattern()->hasType() &&
          "the pattern binding condition is already type checked");
+  bool skipAutoOptionalWrap = bindingIsIrrefutable;
+  if (!skipAutoOptionalWrap && parentGuardHasCatches)
+    skipAutoOptionalWrap = initIsLikelyNonOptionalThrowingCall(
+        elt.getInitializer(), dc);
+
   auto *pattern = TypeChecker::resolvePattern(elt.getPattern(), dc,
-                                              /*isStmtCondition*/ true);
+                                              /*isStmtCondition*/ true,
+                                              skipAutoOptionalWrap);
   if (!pattern) {
     typeCheckPatternFailed();
     return true;
@@ -1070,13 +1154,29 @@ typeCheckPatternBindingStmtConditionElement(StmtConditionElement &elt,
   elt.setPattern(pattern);
   elt.setInitializer(init);
 
+  // For catch-only guards the binding is irrefutable — pattern resolution
+  // skipped the implicit Optional unwrap so 'let x = e' binds e's type
+  // directly. If e's type happens to be Optional, the binding would silently
+  // accept nil with no place to handle it; diagnose that case.
+  if (bindingIsIrrefutable && !hadError) {
+    Type boundTy = pattern->getType();
+    if (boundTy && !boundTy->hasError() &&
+        !boundTy->getOptionalObjectType().isNull()) {
+      Context.Diags.diagnose(elt.getStartLoc(),
+                             diag::catch_only_guard_optional_binding, boundTy);
+      hadError = true;
+    }
+  }
+
   isFalsable |= pattern->isRefutablePattern(/*allowIsPatternCoercion*/ true);
   return hadError;
 }
 
 bool TypeChecker::typeCheckStmtConditionElement(StmtConditionElement &elt,
                                                 bool &isFalsable,
-                                                DeclContext *dc) {
+                                                DeclContext *dc,
+                                                bool bindingIsIrrefutable,
+                                                bool expressionsCanBeNonBool) {
   switch (elt.getKind()) {
   case StmtConditionElement::CK_Availability:
     return typeCheckAvailableStmtConditionElement(elt, isFalsable, dc);
@@ -1084,10 +1184,14 @@ bool TypeChecker::typeCheckStmtConditionElement(StmtConditionElement &elt,
     isFalsable = true;
     return typeCheckHasSymbolStmtConditionElement(elt, dc);
   case StmtConditionElement::CK_Boolean:
-    isFalsable = true;
-    return typeCheckBooleanStmtConditionElement(elt, dc);
+    // A non-Bool expression in a guard-with-catches has no non-throwing
+    // failure path of its own, so it isn't falsable by itself.
+    isFalsable = !expressionsCanBeNonBool;
+    return typeCheckBooleanStmtConditionElement(elt, dc, expressionsCanBeNonBool);
   case StmtConditionElement::CK_PatternBinding:
-    return typeCheckPatternBindingStmtConditionElement(elt, isFalsable, dc);
+    return typeCheckPatternBindingStmtConditionElement(elt, isFalsable, dc,
+                                                       bindingIsIrrefutable,
+                                                       expressionsCanBeNonBool);
   }
 }
 
@@ -1104,15 +1208,30 @@ static bool typeCheckConditionForStatement(LabeledConditionalStmt *stmt,
                                            bool isElseIfBranch = false) {
   bool hadError = false;
   bool hadAnyFalsable = false;
+  // Guards with trailing catches get two relaxations:
+  //   - bindingIsIrrefutable: catch-only guards (no else) skip the implicit
+  //     Optional unwrap so 'let n = try f()' binds n directly to f()'s type.
+  //   - expressionsCanBeNonBool: any guard with catches allows bare throwing
+  //     expressions that aren't Bool.
+  bool bindingIsIrrefutable = false;
+  bool expressionsCanBeNonBool = false;
+  if (auto *guard = dyn_cast<GuardCatchStmt>(stmt)) {
+    bindingIsIrrefutable = !guard->hasElseBody();
+    expressionsCanBeNonBool = true;
+  }
   auto cond = stmt->getCond();
   for (auto &elt : cond) {
     hadError |=
-        TypeChecker::typeCheckStmtConditionElement(elt, hadAnyFalsable, dc);
+        TypeChecker::typeCheckStmtConditionElement(elt, hadAnyFalsable, dc,
+                                                   bindingIsIrrefutable,
+                                                   expressionsCanBeNonBool);
   }
 
   // If none of the statement's conditions can be false, diagnose.
-  // FIXME: Also diagnose if none of the statements conditions can be true.
-  if (!stmt->isImplicit() && !hadAnyFalsable && !hadError) {
+  // Skip for guards with catches: throwing elements are an additional failure
+  // path, so always-succeeds by Bool/Optional reasoning is misleading.
+  if (!stmt->isImplicit() && !hadAnyFalsable && !hadError &&
+      !bindingIsIrrefutable && !expressionsCanBeNonBool) {
     auto &ctx = dc->getASTContext();
     auto &diags = ctx.Diags;
     Diag<> msg = diag::invalid_diagnostic;
@@ -1636,15 +1755,27 @@ public:
   }
 
   Stmt *visitGuardCatchStmt(GuardCatchStmt *GS) {
-    // TODO: Full type-checking including catch bodies.
-    
-    // Type-check the condition so bound variables escape to the outer scope,
-    // and type-check the else body if present.
     typeCheckConditionForStatement(GS, DC);
+
     if (auto *body = GS->getBody()) {
       typeCheckStmt(body);
       GS->setBody(body);
     }
+
+    // Type-check trailing catch clauses, mirroring DoCatchStmt.
+    bool limitExhaustivityChecks = true;
+    Type caughtErrorType = TypeChecker::catchErrorType(DC, GS);
+    GS->setCaughtErrorType(caughtErrorType);
+
+    // If nothing in the conditions can throw, use 'any Error' so the catch
+    // patterns still type-check. Unreachable-catch diagnosis is in effects.
+    if (caughtErrorType->isNever())
+      caughtErrorType = Ctx.getErrorExistentialType();
+
+    auto catches = GS->getCatches();
+    checkSiblingCaseStmts(catches.begin(), catches.end(),
+                          CaseParentKind::DoCatch, limitExhaustivityChecks,
+                          caughtErrorType);
     return GS;
   }
 

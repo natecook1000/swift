@@ -726,12 +726,14 @@ private:
   }
 
   void visitGuardCatchStmt(GuardCatchStmt *guardStmt) {
-    // TODO: Full constraint generation.
-    
     SmallVector<ElementInfo, 4> elements;
     visitStmtCondition(guardStmt, elements, locator);
     if (guardStmt->getBody())
       elements.push_back(makeElement(guardStmt->getBody(), locator));
+    // FIXME(guard-catch): trailing catch clauses are not yet generated as
+    // syntactic elements here; guard-with-catches inside multi-statement
+    // closures skips catch type-checking. Top-level guards still go through
+    // StmtChecker::visitGuardCatchStmt.
     createConjunction(elements, locator);
   }
 

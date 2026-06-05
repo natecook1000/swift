@@ -530,7 +530,9 @@ Expr *substituteInputSugarTypeForResult(ApplyExpr *E);
 /// otherwise leaves \p isFalsable untouched.
 /// \returns \c true if there was an error type checking, \c false otherwise.
 bool typeCheckStmtConditionElement(StmtConditionElement &elt, bool &isFalsable,
-                                   DeclContext *dc);
+                                   DeclContext *dc,
+                                   bool bindingIsIrrefutable = false,
+                                   bool expressionsCanBeNonBool = false);
 
 /// Returns the unique decl ref identified by the expr according to the
 /// requirements of the \c #_hasSymbol() condition type.
@@ -794,7 +796,12 @@ Type getDynamicBridgedThroughObjCClass(DeclContext *dc, Type dynamicType,
 
 /// Resolve ambiguous pattern/expr productions inside a pattern using
 /// name lookup information. Must be done before type-checking the pattern.
-Pattern *resolvePattern(Pattern *P, DeclContext *dc, bool isStmtCondition);
+///
+/// \param bindingIsIrrefutable Set when this 'let'/'var' binding lives in a
+/// catch-only guard. Such bindings take the initializer's type directly instead
+/// of being implicitly wrapped in an Optional unwrap.
+Pattern *resolvePattern(Pattern *P, DeclContext *dc, bool isStmtCondition,
+                        bool bindingIsIrrefutable = false);
 
 /// Type check the given pattern.
 ///
@@ -1162,6 +1169,10 @@ std::optional<Type> canThrow(ASTContext &ctx, Expr *expr);
 /// The error type is used in the catch clauses and, for a nonexhausive
 /// do-catch, is implicitly rethrown out of the do...catch block.
 Type catchErrorType(DeclContext *dc, DoCatchStmt *stmt);
+
+/// Determine the error type thrown out of the condition list of a guard
+/// statement with trailing catch clauses, to be caught by those clauses.
+Type catchErrorType(DeclContext *dc, GuardCatchStmt *stmt);
 
 /// Given two error types, merge them into the "union" of both error types
 /// that is a supertype of both error types.

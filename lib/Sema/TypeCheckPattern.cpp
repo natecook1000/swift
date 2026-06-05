@@ -607,7 +607,8 @@ public:
 
 Pattern *ResolvePatternRequest::evaluate(Evaluator &evaluator, Pattern *P,
                                          DeclContext *DC,
-                                         bool isStmtCondition) const {
+                                         bool isStmtCondition,
+                                         bool bindingIsIrrefutable) const {
   P = ResolvePattern(DC).visit(P);
 
   TypeChecker::diagnoseDuplicateBoundVars(P);
@@ -635,8 +636,10 @@ Pattern *ResolvePatternRequest::evaluate(Evaluator &evaluator, Pattern *P,
 
   // If the pattern was valid, check for an implicit BindingPattern on the outer
   // level.  If so, we have an "if let" condition and we want to enforce some
-  // more structure on it.
-  if (isStmtCondition && isa<BindingPattern>(InnerP) && InnerP->isImplicit()) {
+  // more structure on it. Skip this for catch-only guard catches: those
+  // bindings are irrefutable, so we don't want the implicit Optional unwrap.
+  if (isStmtCondition && !bindingIsIrrefutable &&
+      isa<BindingPattern>(InnerP) && InnerP->isImplicit()) {
     auto *Body = cast<BindingPattern>(InnerP)->getSubPattern();
 
     // If they wrote a "x?" pattern, they probably meant "if let x".
@@ -670,9 +673,11 @@ Pattern *ResolvePatternRequest::evaluate(Evaluator &evaluator, Pattern *P,
 }
 
 Pattern *TypeChecker::resolvePattern(Pattern *P, DeclContext *DC,
-                                     bool isStmtCondition) {
+                                     bool isStmtCondition,
+                                     bool bindingIsIrrefutable) {
   auto &eval = DC->getASTContext().evaluator;
-  return evaluateOrDefault(eval, ResolvePatternRequest{P, DC, isStmtCondition},
+  return evaluateOrDefault(eval, ResolvePatternRequest{P, DC, isStmtCondition,
+                                                       bindingIsIrrefutable},
                            nullptr);
 }
 
