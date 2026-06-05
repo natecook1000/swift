@@ -320,6 +320,9 @@ LabeledConditionalStmt *WhileStmtScope::getLabeledConditionalStmt() const {
 LabeledConditionalStmt *GuardStmtScope::getLabeledConditionalStmt() const {
   return stmt;
 }
+LabeledConditionalStmt *GuardCatchStmtScope::getLabeledConditionalStmt() const {
+  return stmt;
+}
 
 
 #pragma mark getASTContext

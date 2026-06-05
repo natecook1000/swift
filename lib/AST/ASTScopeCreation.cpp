@@ -483,8 +483,9 @@ public:
   }
   ASTScopeImpl *visitGuardCatchStmt(GuardCatchStmt *e, ASTScopeImpl *p,
                                     ScopeCreator &scopeCreator) {
-    // TODO: proper scope for guard-catch (Section 2)
-    return p;
+    ASTScopeAssert(endLoc.has_value(), "GuardCatchStmt outside of a BraceStmt?");
+    return scopeCreator.constructExpandAndInsert<GuardCatchStmtScope>(
+        p, e, *endLoc);
   }
   ASTScopeImpl *visitTopLevelCodeDecl(TopLevelCodeDecl *d,
                                       ASTScopeImpl *p,
@@ -803,6 +804,7 @@ ASTScopeImpl *ASTScopeImpl::expandAndBeCurrent(ScopeCreator &scopeCreator) {
 
 CREATES_NEW_INSERTION_POINT(ASTSourceFileScope)
 CREATES_NEW_INSERTION_POINT(GuardStmtScope)
+CREATES_NEW_INSERTION_POINT(GuardCatchStmtScope)
 CREATES_NEW_INSERTION_POINT(PatternEntryDeclScope)
 CREATES_NEW_INSERTION_POINT(GenericTypeOrExtensionScope)
 CREATES_NEW_INSERTION_POINT(BraceStmtScope)
@@ -815,6 +817,7 @@ NO_NEW_INSERTION_POINT(AbstractFunctionDeclScope)
 NO_NEW_INSERTION_POINT(CustomAttributeScope)
 NO_NEW_INSERTION_POINT(EnumElementScope)
 NO_NEW_INSERTION_POINT(GuardStmtBodyScope)
+NO_NEW_INSERTION_POINT(GuardStmtCatchScope)
 NO_NEW_INSERTION_POINT(ParameterListScope)
 NO_NEW_INSERTION_POINT(PatternEntryInitializerScope)
 
@@ -981,6 +984,44 @@ void
 GuardStmtBodyScope::expandAScopeThatDoesNotCreateANewInsertionPoint(ScopeCreator &
                                                                     scopeCreator) {
   scopeCreator.addToScopeTree(ASTNode(body), this);
+}
+
+void
+GuardStmtCatchScope::expandAScopeThatDoesNotCreateANewInsertionPoint(
+    ScopeCreator &scopeCreator) {
+  scopeCreator.addToScopeTree(ASTNode(clause), this);
+}
+
+AnnotatedInsertionPoint
+GuardCatchStmtScope::expandAScopeThatCreatesANewInsertionPoint(
+    ScopeCreator &scopeCreator) {
+  ASTScopeImpl *conditionLookupParent =
+      createNestedConditionalClauseScopes(scopeCreator, endLoc);
+
+  // Add a child for the 'else' body if present; catch-only guards have no else.
+  // The lookup parent is the whole guard-catch scope, NOT the cond scopes.
+  if (auto *body = stmt->getBody()) {
+    if (!body->empty()) {
+      scopeCreator
+          .constructExpandAndInsert<GuardStmtBodyScope>(
+              conditionLookupParent, this, body);
+    }
+  }
+
+  // Each trailing catch clause gets its own scope. The wrapper's tree
+  // parent is conditionLookupParent so the catch's source range is
+  // contained within the binding-escape range (preventing sibling-overlap
+  // with the ConditionalClausePatternUseScope), but its lookupParent
+  // override routes name lookup up to the GuardCatchStmtScope, bypassing
+  // the condition's pattern bindings — catches run on the throwing failure
+  // path where bindings never completed.
+  for (auto *clause : stmt->getCatches())
+    scopeCreator
+        .constructExpandAndInsert<GuardStmtCatchScope>(
+            conditionLookupParent, this, clause);
+
+  return {conditionLookupParent,
+          "Succeeding code must be in scope of guard-catch variables"};
 }
 
 AnnotatedInsertionPoint

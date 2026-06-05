@@ -6156,14 +6156,12 @@ void PrintAST::visitGuardStmt(GuardStmt *stmt) {
 void PrintAST::visitGuardCatchStmt(GuardCatchStmt *stmt) {
   Printer << tok::kw_guard << " ";
   printStmtCondition(stmt->getCond());
-  if (stmt->getBody()) {
+  if (auto *body = stmt->getBody()) {
     Printer << " else ";
-    visit(stmt->getBody());
+    visit(body);
   }
-  for (auto *C : stmt->getCatches()) {
-    Printer << " ";
-    visit(C);
-  }
+  for (auto *clause : stmt->getCatches())
+    visitCaseStmt(clause);
 }
 
 void PrintAST::visitWhileStmt(WhileStmt *stmt) {

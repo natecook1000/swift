@@ -563,6 +563,10 @@ bool GuardStmtBodyScope::isLabeledStmtLookupTerminator() const {
   return false;
 }
 
+bool GuardStmtCatchScope::isLabeledStmtLookupTerminator() const {
+  return false;
+}
+
 bool ConditionalClausePatternUseScope::isLabeledStmtLookupTerminator() const {
   return false;
 }
@@ -743,6 +747,13 @@ CatchNode ASTScopeImpl::lookupCatchNode(ModuleDecl *module, SourceLoc loc) {
 
   // Look for a body scope that's the direct descendent of a catch node.
   const BraceStmtScope *innerBodyScope = nullptr;
+  // For guard-with-catches, the "covered region" is the condition list,
+  // which doesn't sit under a BraceStmtScope. We instead spot it by
+  // recognizing a GuardCatchStmtScope ancestor whose body/catch sub-scopes
+  // were not traversed on the way up: if we reach a GuardCatchStmtScope
+  // without having passed through its else body or catch clauses, the
+  // location is inside the conditions and the guard catches throws.
+  bool throughGuardElseOrCatchScope = false;
   for (auto scope = innermost; scope; scope = scope->getParent().getPtrOrNull()) {
     // If we are at a catch node and in the body of the region from which that
     // node catches thrown errors, we have our result.
@@ -764,6 +775,18 @@ CatchNode ASTScopeImpl::lookupCatchNode(ModuleDecl *module, SourceLoc loc) {
       if (isa<ForceTryExpr>(tryScope->expr) ||
           isa<OptionalTryExpr>(tryScope->expr))
         return tryScope->expr;
+    }
+
+    // Detect a guard-catch whose conditions cover the lookup location.
+    if (auto guardScope = dyn_cast<GuardCatchStmtScope>(scope)) {
+      if (!throughGuardElseOrCatchScope)
+        return guardScope->stmt;
+      // After passing this guard, the gating only applied to it; outer
+      // guards are independent.
+      throughGuardElseOrCatchScope = false;
+    } else if (isa<GuardStmtBodyScope>(scope) ||
+               isa<GuardStmtCatchScope>(scope)) {
+      throughGuardElseOrCatchScope = true;
     }
 
     innerBodyScope = dyn_cast<BraceStmtScope>(scope);

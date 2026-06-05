@@ -726,7 +726,13 @@ private:
   }
 
   void visitGuardCatchStmt(GuardCatchStmt *guardStmt) {
-    llvm_unreachable("GuardCatchStmt constraint generation not yet implemented");
+    // TODO: Full constraint generation.
+    
+    SmallVector<ElementInfo, 4> elements;
+    visitStmtCondition(guardStmt, elements, locator);
+    if (guardStmt->getBody())
+      elements.push_back(makeElement(guardStmt->getBody(), locator));
+    createConjunction(elements, locator);
   }
 
   void visitWhileStmt(WhileStmt *whileStmt) {
@@ -1706,7 +1712,18 @@ private:
   }
 
   ASTNode visitGuardCatchStmt(GuardCatchStmt *guardStmt) {
-    llvm_unreachable("GuardCatchStmt solution application not yet implemented");
+    // TODO: Full solution application.
+    
+    if (auto condition = rewriter.rewriteTarget(SyntacticElementTarget(
+            guardStmt->getCond(), context.getAsDeclContext())))
+      guardStmt->setCond(*condition->getAsStmtCondition());
+    else
+      hadError = true;
+    if (auto *body = guardStmt->getBody()) {
+      auto *newBody = cast<Stmt *>(visit(body));
+      guardStmt->setBody(cast<BraceStmt>(newBody));
+    }
+    return guardStmt;
   }
 
   ASTNode visitWhileStmt(WhileStmt *whileStmt) {

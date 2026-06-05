@@ -364,6 +364,16 @@ SourceRange GuardStmtBodyScope::getSourceRangeOfThisASTNode(
   return body->getSourceRange();
 }
 
+SourceRange GuardCatchStmtScope::getSourceRangeOfThisASTNode(
+    const bool omitAssertions) const {
+  return SourceRange(stmt->getStartLoc(), endLoc);
+}
+
+SourceRange GuardStmtCatchScope::getSourceRangeOfThisASTNode(
+    const bool omitAssertions) const {
+  return clause->getSourceRange();
+}
+
 #pragma mark source range caching
 
 SourceRange

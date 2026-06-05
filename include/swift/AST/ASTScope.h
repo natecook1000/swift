@@ -1562,6 +1562,67 @@ public:
   }
 };
 
+/// Scope for a guard statement with trailing catch clauses (shapes 2 and 3).
+/// Mirrors GuardStmtScope but for GuardCatchStmt.
+class GuardCatchStmtScope final : public LabeledConditionalStmtScope {
+public:
+  GuardCatchStmt *const stmt;
+  SourceLoc endLoc;
+  GuardCatchStmtScope(GuardCatchStmt *e, SourceLoc endLoc)
+      : LabeledConditionalStmtScope(ScopeKind::GuardCatchStmt),
+        stmt(e), endLoc(endLoc) {}
+  virtual ~GuardCatchStmtScope() {}
+
+protected:
+  ASTScopeImpl *expandSpecifically(ScopeCreator &scopeCreator) override;
+
+private:
+  AnnotatedInsertionPoint
+  expandAScopeThatCreatesANewInsertionPoint(ScopeCreator &);
+
+public:
+  LabeledConditionalStmt *getLabeledConditionalStmt() const override;
+  SourceRange
+  getSourceRangeOfThisASTNode(bool omitAssertions = false) const override;
+
+  static bool classof(const ASTScopeImpl *scope) {
+    return scope->getKind() == ScopeKind::GuardCatchStmt;
+  }
+};
+
+/// A scope for a trailing 'catch' clause on a guard statement. Like
+/// GuardStmtBodyScope, lookups from the catch body must skip past the
+/// condition's pattern-binding scopes — those bindings only complete on the
+/// success path, while the catch handles the throwing failure path where
+/// bindings never finished.
+class GuardStmtCatchScope final : public ASTScopeImpl {
+public:
+  ASTScopeImpl *const lookupParent;
+  CaseStmt *const clause;
+
+  GuardStmtCatchScope(ASTScopeImpl *lookupParent, CaseStmt *clause)
+      : ASTScopeImpl(ScopeKind::GuardStmtCatch), lookupParent(lookupParent),
+        clause(clause) {}
+
+  SourceRange
+  getSourceRangeOfThisASTNode(bool omitAssertions = false) const override;
+
+private:
+  void expandAScopeThatDoesNotCreateANewInsertionPoint(ScopeCreator &);
+
+protected:
+  ASTScopeImpl *expandSpecifically(ScopeCreator &) override;
+  NullablePtr<const ASTScopeImpl> getLookupParent() const override {
+    return lookupParent;
+  }
+  bool isLabeledStmtLookupTerminator() const override;
+
+public:
+  static bool classof(const ASTScopeImpl *scope) {
+    return scope->getKind() == ScopeKind::GuardStmtCatch;
+  }
+};
+
 class RepeatWhileScope final : public AbstractStmtScope {
 public:
   RepeatWhileStmt *const stmt;

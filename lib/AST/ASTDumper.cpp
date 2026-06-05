@@ -3349,8 +3349,8 @@ public:
     printRecRange(S->getCond(), Ctx, Label::always("conditions"));
     if (S->getBody())
       printRec(S->getBody(), Label::optional("body"));
-    for (auto *C : S->getCatches())
-      printRec(C, Label::optional("catch"));
+    printThrowDest(S->rethrows(), /*wantNothrow=*/true);
+    printRecRange(S->getCatches(), Ctx, Label::always("catch_stmts"));
     printFoot();
   }
 

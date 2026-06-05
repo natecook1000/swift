@@ -1636,7 +1636,16 @@ public:
   }
 
   Stmt *visitGuardCatchStmt(GuardCatchStmt *GS) {
-    llvm_unreachable("GuardCatchStmt type-checking not yet implemented");
+    // TODO: Full type-checking including catch bodies.
+    
+    // Type-check the condition so bound variables escape to the outer scope,
+    // and type-check the else body if present.
+    typeCheckConditionForStatement(GS, DC);
+    if (auto *body = GS->getBody()) {
+      typeCheckStmt(body);
+      GS->setBody(body);
+    }
+    return GS;
   }
 
   Stmt *visitDoStmt(DoStmt *DS) {

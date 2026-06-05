@@ -13656,6 +13656,18 @@ CatchNode::getThrownErrorTypeInContext(ASTContext &ctx) const {
     return ctx.getErrorExistentialType();
   }
 
+  if (auto guard = dyn_cast<GuardCatchStmt *>()) {
+    if (auto thrownError = guard->getCaughtErrorType()) {
+      if (thrownError->isNever())
+        return std::nullopt;
+
+      return thrownError;
+    }
+
+    // If we haven't computed the error type yet, return 'any Error'.
+    return ctx.getErrorExistentialType();
+  }
+
   auto tryExpr = cast<AnyTryExpr *>(*this);
   if (auto forceTry = llvm::dyn_cast<ForceTryExpr>(tryExpr)) {
     if (auto thrownError = forceTry->getThrownError())
@@ -13697,6 +13709,8 @@ SourceLoc swift::extractNearestSourceLoc(CatchNode catchNode) {
     return closure->getLoc();
   if (auto doCatch = catchNode.dyn_cast<DoCatchStmt *>())
     return doCatch->getDoLoc();
+  if (auto guard = catchNode.dyn_cast<GuardCatchStmt *>())
+    return guard->getGuardLoc();
   if (auto tryExpr = catchNode.dyn_cast<AnyTryExpr *>())
     return tryExpr->getTryLoc();
   llvm_unreachable("Unhandled catch node");
