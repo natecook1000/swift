@@ -1251,6 +1251,7 @@ Added: _$ss8IterablePsRi_zRi0_z7ElementRj_zrlE024_customContainsEquatableB0ySbSg
 Added: _$ss8IterablePsRi_zRi0_z7ElementRj_zrlE19underestimatedCountSivg
 Added: _$ss8IterablePsRi_zRi0_z7ElementRj_zrlE19underestimatedCountSivpMV
 Added: _$ss8IterableTL
+Added: _$ss11UniqueArrayVyxGs8IterablesRi_zrlMc
 
 // Necessary for Distributed to compute distributed remote reference object size
 Added: __ZN5swift26getResilientMetadataBoundsEPKNS_21TargetClassDescriptorINS_9InProcessEEE

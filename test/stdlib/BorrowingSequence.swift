@@ -27,10 +27,7 @@ defer { runAllTests() }
 
 suite.test("Iterable")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let array = [1, 2, 3, 4, 5, 6, 7, 8]
 
@@ -58,10 +55,7 @@ suite.test("Iterable")
 
 suite.test("Iterable/independent-iterators")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [1, 2, 3, 4, 5]
   let span = arr.span
@@ -87,10 +81,7 @@ suite.test("Iterable/independent-iterators")
 
 suite.test("Iterable/collect")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let empty: [Int] = []
   let collectedEmpty = empty.span.collectViaBorrowing()
@@ -104,10 +95,7 @@ suite.test("Iterable/collect")
 
 suite.test("Iterable/elementsEqual")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let empty: [Int] = []
   expectTrue(empty.span.elementsEqual(empty.span))
@@ -124,10 +112,7 @@ suite.test("Iterable/elementsEqual")
 
 suite.test("Iterable/reduce")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let empty: [Int] = []
   let result = empty.span.reduce(0, +)
@@ -142,10 +127,7 @@ suite.test("Iterable/reduce")
 
 suite.test("Span.BorrowingIterator/basic")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [10, 20, 30, 40, 50]
   let span = arr.span
@@ -162,10 +144,7 @@ suite.test("Span.BorrowingIterator/basic")
 
 suite.test("Span.BorrowingIterator/partial-reads")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [1, 2, 3, 4, 5]
   let span = arr.span
@@ -190,10 +169,7 @@ suite.test("Span.BorrowingIterator/partial-reads")
 
 suite.test("Span.BorrowingIterator/no-arg-convenience")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [1, 2, 3]
   let span = arr.span
@@ -206,10 +182,7 @@ suite.test("Span.BorrowingIterator/no-arg-convenience")
 
 suite.test("Span.BorrowingIterator/empty-span")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let empty: [Int] = []
   let span = empty.span
@@ -223,10 +196,7 @@ suite.test("Span.BorrowingIterator/empty-span")
 
 suite.test("Span.BorrowingIterator/single-element")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [99]
   let span = arr.span
@@ -240,10 +210,7 @@ suite.test("Span.BorrowingIterator/single-element")
 
 suite.test("Span.BorrowingIterator/skip-basic")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [1, 2, 3, 4, 5]
   let span = arr.span
@@ -259,10 +226,7 @@ suite.test("Span.BorrowingIterator/skip-basic")
 
 suite.test("Span.BorrowingIterator/skip-past-end")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [1, 2, 3]
   let span = arr.span
@@ -278,10 +242,7 @@ suite.test("Span.BorrowingIterator/skip-past-end")
 
 suite.test("Span.BorrowingIterator/skip-zero")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [1, 2, 3]
   let span = arr.span
@@ -297,10 +258,7 @@ suite.test("Span.BorrowingIterator/skip-zero")
 
 suite.test("Span.BorrowingIterator/skip-then-partial-read")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [10, 20, 30, 40, 50, 60]
   let span = arr.span
@@ -321,10 +279,7 @@ suite.test("Span.BorrowingIterator/skip-then-partial-read")
 
 suite.test("Span.BorrowingIterator/noncopyable-elements")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let buffer = UnsafeMutableBufferPointer<NoncopyableInt>.allocate(capacity: 4)
   for i in 0..<4 {
@@ -350,10 +305,7 @@ suite.test("Span.BorrowingIterator/noncopyable-elements")
 
 suite.test("BorrowingIteratorAdapter/basic")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [10, 20, 30]
   var iter = BorrowingIteratorAdapter(iterator: arr.makeIterator())
@@ -369,10 +321,7 @@ suite.test("BorrowingIteratorAdapter/basic")
 
 suite.test("BorrowingIteratorAdapter/one-element-per-call")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   // BorrowingIteratorAdapter buffers one element at a time via Optional<T>
   let arr = [100, 200, 300]
@@ -396,10 +345,7 @@ suite.test("BorrowingIteratorAdapter/one-element-per-call")
 
 suite.test("BorrowingIteratorAdapter/empty")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let empty: [Int] = []
   var iter = BorrowingIteratorAdapter(iterator: empty.makeIterator())
@@ -409,10 +355,7 @@ suite.test("BorrowingIteratorAdapter/empty")
 
 suite.test("BorrowingIteratorAdapter/skip-via-default-implementation")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   // BorrowingIteratorAdapter uses the default skip(by:) from
   // BorrowingIteratorProtocol, which loops calling nextSpan.
@@ -429,10 +372,7 @@ suite.test("BorrowingIteratorAdapter/skip-via-default-implementation")
 
 suite.test("BorrowingIteratorAdapter/skip-past-end")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [10, 20, 30]
   var iter = BorrowingIteratorAdapter(iterator: arr.makeIterator())
@@ -448,10 +388,7 @@ suite.test("BorrowingIteratorAdapter/skip-past-end")
 
 suite.test("InlineArray/collect-via-iterable")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let inline: [4 of Int] = [10, 20, 30, 40]
   let collected = inline.collectViaBorrowing()
@@ -460,10 +397,7 @@ suite.test("InlineArray/collect-via-iterable")
 
 suite.test("InlineArray/makeBorrowingIterator-partial")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let inline: [5 of Int] = [1, 2, 3, 4, 5]
   var iter = inline.makeBorrowingIterator()
@@ -479,10 +413,7 @@ suite.test("InlineArray/makeBorrowingIterator-partial")
 
 suite.test("InlineArray/skip")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let inline: [6 of Int] = [10, 20, 30, 40, 50, 60]
   var iter = inline.makeBorrowingIterator()
@@ -498,15 +429,70 @@ suite.test("InlineArray/skip")
 
 suite.test("InlineArray/noncopyable-elementsEqual")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let a: [4 of NoncopyableInt] = InlineArray(NoncopyableInt.init(value:))
   let b: [4 of NoncopyableInt] = InlineArray(NoncopyableInt.init(value:))
   expectTrue(a.elementsEqual(b))
   expectTrue(a.elementsEqual(a))
+}
+
+// MARK: - UniqueArray Iterable tests
+
+suite.test("UniqueArray/collect-via-iterable")
+.require(.stdlib_6_4).code {
+  guard #available(SwiftStdlib 6.4, *) else { return }
+
+  let unique = UniqueArray(copying: 1...5)
+  let collected = unique.collectViaBorrowing()
+  expectEqual(collected, [1, 2, 3, 4, 5])
+}
+
+suite.test("UniqueArray/makeBorrowingIterator-partial")
+.require(.stdlib_6_4).code {
+  guard #available(SwiftStdlib 6.4, *) else { return }
+
+  let unique = UniqueArray(copying: 1...5)
+  var iter = unique.makeBorrowingIterator()
+
+  var iterSpan = iter.nextSpan(maxCount: 3)
+  expectEqual(iterSpan.count, 3)
+  expectEqual(iterSpan[0], 1)
+
+  iterSpan = iter.nextSpan(maxCount: .max)
+  expectEqual(iterSpan.count, 2)
+  expectEqual(iterSpan[0], 4)
+}
+
+suite.test("UniqueArray/skip")
+.require(.stdlib_6_4).code {
+  guard #available(SwiftStdlib 6.4, *) else { return }
+
+  let unique = UniqueArray(copying: 1...5)
+  var iter = unique.makeBorrowingIterator()
+
+  let skipped = iter.skip(by: 3)
+  expectEqual(skipped, 3)
+
+  let remaining = iter.nextSpan(maxCount: .max)
+  expectEqual(remaining.count, 2)
+  expectEqual(remaining[0], 4)
+  expectEqual(remaining[1], 5)
+}
+
+suite.test("UniqueArray/noncopyable-elementsEqual")
+.require(.stdlib_6_4).code {
+  guard #available(SwiftStdlib 6.4, *) else { return }
+
+  let a: [4 of NoncopyableInt] = InlineArray(NoncopyableInt.init(value:))
+  let b = UniqueArray<NoncopyableInt>(capacity: 4) { outputSpan in
+    for i in 0..<4 {
+      outputSpan.append(NoncopyableInt(value: i))
+    }
+  }
+  expectTrue(a.elementsEqual(b))
+  expectTrue(b.elementsEqual(a))
+  expectTrue(b.elementsEqual(b))
 }
 
 // MARK: - Throwing Iterable tests
@@ -515,10 +501,7 @@ suite.test("InlineArray/noncopyable-elementsEqual")
 
 suite.test("ThrowingIterable/success-no-throw")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [1, 2, 3, 4, 5]
   let span = arr.span
@@ -534,10 +517,7 @@ suite.test("ThrowingIterable/success-no-throw")
 
 suite.test("ThrowingIterable/throws-at-limit")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [1, 2, 3, 4, 5]
   let span = arr.span
@@ -555,10 +535,7 @@ suite.test("ThrowingIterable/throws-at-limit")
 
 suite.test("ThrowingIterable/throws-immediately")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [1, 2, 3]
   let span = arr.span
@@ -576,10 +553,7 @@ suite.test("ThrowingIterable/throws-immediately")
 
 suite.test("ThrowingIterable/exact-limit-no-throw")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   // limit == count: iterates exactly the whole span without throwing
   // because the inner Span.BorrowingIterator exhausts before the limit check fires
@@ -601,10 +575,7 @@ suite.test("ThrowingIterable/exact-limit-no-throw")
 
 suite.test("ForIn/basic-span")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [10, 20, 30, 40, 50]
   var collected: [Int] = []
@@ -616,10 +587,7 @@ suite.test("ForIn/basic-span")
 
 suite.test("ForIn/break")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [1, 2, 3, 4, 5]
   var collected: [Int] = []
@@ -632,10 +600,7 @@ suite.test("ForIn/break")
 
 suite.test("ForIn/continue")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [1, 2, 3, 4, 5]
   var collected: [Int] = []
@@ -648,10 +613,7 @@ suite.test("ForIn/continue")
 
 suite.test("ForIn/where-clause")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [1, 2, 3, 4, 5, 6]
   var collected: [Int] = []
@@ -663,10 +625,7 @@ suite.test("ForIn/where-clause")
 
 suite.test("ForIn/empty-span")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let empty: [Int] = []
   var count = 0
@@ -678,10 +637,7 @@ suite.test("ForIn/empty-span")
 
 suite.test("ForIn/noncopyable-elements")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let buffer = UnsafeMutableBufferPointer<NoncopyableInt>.allocate(capacity: 4)
   for i in 0..<4 {
@@ -698,10 +654,7 @@ suite.test("ForIn/noncopyable-elements")
 
 suite.test("ForIn/inline-array")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let inline: [5 of Int] = [2, 4, 6, 8, 10]
   var sum = 0
@@ -713,10 +666,7 @@ suite.test("ForIn/inline-array")
 
 suite.test("ForIn/nested-loops")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let outer = [1, 2, 3]
   let inner = [10, 20]
@@ -736,10 +686,7 @@ suite.test("ForIn/nested-loops")
 
 suite.test("ForTryIn/success-no-throw")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [1, 2, 3, 4, 5]
   let span = arr.span
@@ -758,10 +705,7 @@ suite.test("ForTryIn/success-no-throw")
 
 suite.test("ForTryIn/throws-partway-through")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [1, 2, 3, 4, 5]
   let span = arr.span
@@ -784,10 +728,7 @@ suite.test("ForTryIn/throws-partway-through")
 
 suite.test("ForTryIn/throws-immediately")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [1, 2, 3]
   let span = arr.span
@@ -810,10 +751,7 @@ suite.test("ForTryIn/throws-immediately")
 
 suite.test("ForTryIn/break-before-throw")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [1, 2, 3, 4, 5]
   let span = arr.span
@@ -832,10 +770,7 @@ suite.test("ForTryIn/break-before-throw")
 
 suite.test("ForTryIn/continue-in-throwing-loop")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   let arr = [1, 2, 3, 4, 5]
   let span = arr.span
@@ -855,10 +790,7 @@ suite.test("ForTryIn/continue-in-throwing-loop")
 
 suite.test("ForTryIn/rethrow")
 .require(.stdlib_6_4).code {
-  guard #available(SwiftStdlib 6.4, *) else {
-    expectTrue(false)
-    return
-  }
+  guard #available(SwiftStdlib 6.4, *) else { return }
 
   // Helper that iterates and rethrows, proving typed errors propagate
   @available(SwiftStdlib 6.4, *)
