@@ -232,6 +232,153 @@ static Stmt *createAvailabilityGuardStmt(ASTContext &C,
   return guardStmt;
 }
 
+/// The largest number of cases whose tag still fits in a single byte.
+static constexpr unsigned MaxContiguousRawValueCases = 256;
+
+static bool isSignedStdlibInteger(Type rawTy) {
+  return rawTy->isInt() || rawTy->isInt8() || rawTy->isInt16() ||
+         rawTy->isInt32() || rawTy->isInt64() || rawTy->isInt128();
+}
+
+/// If each case of \p enumDecl has a raw value equal to its own
+/// declaration-order index, returns the number of cases. Such an enum's tag is
+/// already its raw value, so `init?(rawValue:)` can be synthesized as a range
+/// check rather than a comparison per case.
+static std::optional<unsigned>
+getContiguousRawValueCaseCount(EnumDecl *enumDecl, Type rawTy,
+                               AvailabilityContext availabilityContext) {
+  // A non-integer raw type bears no relation to the tag, even when its raw
+  // values are written as integer literals.
+  if (!rawTy->isStdlibInteger())
+    return std::nullopt;
+
+  // Imported and @objc enums are represented by their raw value rather than by
+  // a case index.
+  if (enumDecl->hasClangNode() || enumDecl->isObjC())
+    return std::nullopt;
+
+  unsigned caseCount = 0;
+  for (auto elt : enumDecl->getAllElements()) {
+    // An unavailable case still consumes its index, and a conditionally
+    // available one needs a runtime query, so neither can be reached by an
+    // unguarded conversion.
+    SmallVector<AvailabilityQuery, 1> availabilityQueries;
+    if (!checkAvailabilityForElement(elt, availabilityContext,
+                                     availabilityQueries))
+      return std::nullopt;
+    if (!availabilityQueries.empty())
+      return std::nullopt;
+
+    auto litExpr = dyn_cast_or_null<IntegerLiteralExpr>(elt->getRawValueExpr());
+    if (!litExpr || litExpr->isNegative())
+      return std::nullopt;
+
+    // The literal may be written in any radix, so compare its value rather
+    // than its text.
+    auto rawValue = litExpr->getRawValue();
+    if (rawValue.getActiveBits() > 32 || rawValue.getZExtValue() != caseCount)
+      return std::nullopt;
+
+    if (++caseCount > MaxContiguousRawValueCases)
+      return std::nullopt;
+  }
+
+  // A single-case enum is zero-sized, so it has no tag byte to convert.
+  if (caseCount < 2)
+    return std::nullopt;
+
+  return caseCount;
+}
+
+static std::pair<BraceStmt *, bool>
+deriveBodyRawRepresentable_contiguousInit(AbstractFunctionDecl *initDecl,
+                                          Type rawTy, unsigned caseCount) {
+  // enum SomeEnum : SomeType {
+  //   case A, B, C
+  //   @derived
+  //   init?(rawValue: SomeType) {
+  //     guard rawValue >= 0, rawValue <= 2 else { return nil }
+  //     self = unsafeBitCast(UInt8(truncatingIfNeeded: rawValue),
+  //                          to: Self.self)
+  //   }
+  // }
+
+  auto parentDC = initDecl->getDeclContext();
+  ASTContext &C = parentDC->getASTContext();
+
+  Type enumType = parentDC->getDeclaredTypeInContext();
+  auto selfDecl = cast<ConstructorDecl>(initDecl)->getImplicitSelfDecl();
+  auto rawDecl = initDecl->getParameters()->get(0);
+
+  SmallVector<StmtConditionElement, 2> conditions;
+
+  // A signed raw type can hold values that an upper bound alone would admit.
+  if (isSignedStdlibInteger(rawTy)) {
+    // lowerBound = "rawValue >= 0"
+    auto geFuncExpr = new (C)
+        UnresolvedDeclRefExpr(DeclNameRef(C.getIdentifier(">=")),
+                              DeclRefKind::BinaryOperator, DeclNameLoc());
+    auto rawRef =
+        new (C) DeclRefExpr(rawDecl, DeclNameLoc(), /*implicit*/ true);
+    auto zero = IntegerLiteralExpr::createFromUnsigned(C, 0, SourceLoc());
+    auto lowerBound = BinaryExpr::create(C, rawRef, geFuncExpr, zero,
+                                         /*implicit*/ true);
+    conditions.emplace_back(lowerBound);
+  }
+
+  // upperBound = "rawValue <= \(caseCount - 1)". The bound is the last case's
+  // own raw value, which unlike the case count is always representable in the
+  // raw type.
+  auto leFuncExpr =
+      new (C) UnresolvedDeclRefExpr(DeclNameRef(C.getIdentifier("<=")),
+                                    DeclRefKind::BinaryOperator, DeclNameLoc());
+  auto rawRef = new (C) DeclRefExpr(rawDecl, DeclNameLoc(), /*implicit*/ true);
+  auto lastValue =
+      IntegerLiteralExpr::createFromUnsigned(C, caseCount - 1, SourceLoc());
+  auto upperBound = BinaryExpr::create(C, rawRef, leFuncExpr, lastValue,
+                                       /*implicit*/ true);
+  conditions.emplace_back(upperBound);
+
+  // guardStmt = "guard \(conditions) else { return nil }"
+  auto failStmt = new (C) FailStmt(SourceLoc(), SourceLoc());
+  auto failBody = BraceStmt::create(C, SourceLoc(), ASTNode(failStmt),
+                                    SourceLoc(), /*implicit=*/true);
+  auto guardStmt = new (C) GuardStmt(SourceLoc(), C.AllocateCopy(conditions),
+                                     failBody, /*implicit=*/true);
+
+  // tagExpr = "UInt8(truncatingIfNeeded: rawValue)"
+  auto tagTypeExpr = TypeExpr::createImplicit(C.getUInt8Type(), C);
+  auto tagRawRef = new (C) DeclRefExpr(rawDecl, DeclNameLoc(),
+                                       /*implicit*/ true);
+  Argument tagArgs[] = {
+      Argument(SourceLoc(), C.getIdentifier("truncatingIfNeeded"), tagRawRef)};
+  auto tagExpr = CallExpr::createImplicit(
+      C, tagTypeExpr, ArgumentList::createImplicit(C, tagArgs));
+
+  // call = "unsafeBitCast(\(tagExpr), to: Self.self)"
+  auto functionRef = UnresolvedDeclRefExpr::createImplicit(
+      C, C.getIdentifier("unsafeBitCast"), {Identifier(), C.Id_to});
+  auto bareTypeExpr = TypeExpr::createImplicit(enumType, C);
+  auto typeExpr = new (C) DotSelfExpr(bareTypeExpr, SourceLoc(), SourceLoc());
+  auto *argList = ArgumentList::forImplicitCallTo(functionRef->getName(),
+                                                  {tagExpr, typeExpr}, C);
+  Expr *call = CallExpr::createImplicit(C, functionRef, argList);
+  if (C.LangOpts.hasFeature(Feature::StrictMemorySafety,
+                            /*allowMigration=*/true))
+    call = UnsafeExpr::createImplicit(C, SourceLoc(), call);
+
+  // assignment = "self = \(call)"
+  auto selfRef =
+      new (C) DeclRefExpr(selfDecl, DeclNameLoc(),
+                          /*implicit*/ true, AccessSemantics::DirectToStorage);
+  auto assignment = new (C) AssignExpr(selfRef, SourceLoc(), call,
+                                       /*implicit*/ true);
+
+  ASTNode stmts[2] = {ASTNode(guardStmt), ASTNode(assignment)};
+  auto body = BraceStmt::create(C, SourceLoc(), stmts, SourceLoc());
+  return {body, /*isTypeChecked=*/false};
+}
+
 static std::pair<BraceStmt *, bool>
 deriveBodyRawRepresentable_init(AbstractFunctionDecl *initDecl, void *) {
   // enum SomeEnum : SomeType {
@@ -266,6 +413,13 @@ deriveBodyRawRepresentable_init(AbstractFunctionDecl *initDecl, void *) {
 
   bool isStringEnum = rawTy->isString();
   llvm::SmallVector<Expr *, 16> stringExprs;
+
+  // When the raw values are the contiguous case indices, the tag is already
+  // the raw value, so a range check stands in for the switch below.
+  if (auto caseCount =
+          getContiguousRawValueCaseCount(enumDecl, rawTy, availabilityContext))
+    return deriveBodyRawRepresentable_contiguousInit(initDecl, rawTy,
+                                                     *caseCount);
 
   Type enumType = parentDC->getDeclaredTypeInContext();
 
